@@ -3,6 +3,7 @@ import pandas as pd
 from dataclasses import dataclass
 from typing import Dict, List, Tuple
 import logging
+import itertools
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
