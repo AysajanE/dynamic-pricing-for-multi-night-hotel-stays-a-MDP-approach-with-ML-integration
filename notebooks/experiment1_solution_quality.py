@@ -33,9 +33,19 @@ class DynamicProgramming:
         self.arrival_probs = instance['arrival_probabilities']
         self.price_sensitivity = instance['reservation_price_params']
         
-        # Use exactly 3 price levels as specified
-        self.price_levels = [self.price_min, (self.price_min + self.price_max)/2, self.price_max]
+        # Define number of price levels (can be adjusted based on problem size)
+        self.num_price_levels = 3  # Using 3 price levels as an example
+        
+        # Pre-compute price levels for each day
+        self.price_levels = np.linspace(self.price_min, self.price_max, self.num_price_levels)
+        
+        # Generate all possible price combinations for N days
         self.price_combinations = list(itertools.product(self.price_levels, repeat=self.N))
+        logger.info(f"Generated {len(self.price_combinations)} price combinations")
+        
+        # # Use exactly 3 price levels as specified
+        # self.price_levels = [self.price_min, (self.price_min + self.price_max)/2, self.price_max]
+        # self.price_combinations = list(itertools.product(self.price_levels, repeat=self.N))
         
         # Pre-compute stay patterns
         self.class_stays = {
