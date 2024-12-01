@@ -13,6 +13,7 @@ import json
 from datetime import datetime
 from concurrent.futures import ProcessPoolExecutor
 import itertools
+import os
 
 from data_generator import TestConfiguration, create_test_instance
 from dynamic_pricing_algorithms import DynamicProgramming, StochasticApproximation
@@ -30,10 +31,29 @@ class Experiment1Runner:
     Compares SAA performance against optimal DP solution for small instances.
     """
     
-    def __init__(self, output_dir: str = "results/experiment1"):
-        """Initialize experiment runner with configuration."""
-        self.output_dir = Path(output_dir)
+    # def __init__(self, output_dir: str = "results/experiment1"):
+    #     """Initialize experiment runner with configuration."""
+    #     self.output_dir = Path(output_dir)
+    #     self.output_dir.mkdir(parents=True, exist_ok=True)
+    def __init__(self, base_results_dir: str = "../experiments/experiment1"):
+        """
+        Initialize experiment runner with configuration.
+        
+        Args:
+            base_results_dir: Path to the base results directory, relative to the script location
+        """
+        # Get the directory where the script is located
+        script_dir = Path(__file__).parent.absolute()
+        
+        # Construct the full path to the results directory
+        self.base_results_dir = Path(script_dir) / base_results_dir
+        self.output_dir = self.base_results_dir / "results"
+        
+        # Create the experiment directory if it doesn't exist
         self.output_dir.mkdir(parents=True, exist_ok=True)
+        
+        # Log the results directory location
+        logger.info(f"Results will be saved to: {self.output_dir}")
         
         # Define experiment parameters
         self.T = 5  # Booking horizon
