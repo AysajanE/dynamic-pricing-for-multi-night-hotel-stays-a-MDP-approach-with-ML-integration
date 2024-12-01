@@ -40,9 +40,13 @@ class Experiment1Runner:
         self.N = 3  # Service horizon
         
         # Define parameter ranges for test instances
-        self.capacity_levels = [3, 5, 7]  # Small capacities for tractable DP
-        self.demand_scenarios = ['low', 'base', 'high']
-        self.market_conditions = ['budget', 'standard', 'luxury']
+        # self.capacity_levels = [3, 5, 7]  # Small capacities for tractable DP
+        # self.demand_scenarios = ['low', 'base', 'high']
+        # self.market_conditions = ['budget', 'standard', 'luxury']
+        
+        self.capacity_levels = [3, 5]  # Small capacities for tractable DP
+        self.demand_scenarios = ['low', 'base']
+        self.market_conditions = ['budget', 'standard']
         
         # SAA learning parameters
         self.learning_params = {
@@ -304,54 +308,83 @@ class Experiment1Runner:
             
     def create_visualizations(self, results_df: pd.DataFrame):
         """Create and save visualizations of experimental results."""
-        # Set style and figure size
-        sns.set_theme()
-        sns.set_style("whitegrid")
-        plt.rcParams['figure.figsize'] = (12, 6)
+        import matplotlib
+        matplotlib.use('Agg')  # Set backend to non-interactive
+
+        # Reset any existing plots
+        plt.close('all')
 
         try:
-            # 1. Revenue Comparison Bar Chart
-            plt.figure()
-            sns.barplot(data=results_df, x='capacity', y='dp_revenue', 
-                       hue='demand_scenario', errorbar=('ci', 95))
-            plt.title('DP Revenue by Capacity and Demand Scenario')
-            plt.xlabel('Capacity Level')
-            plt.ylabel('Revenue')
+            # 1. Revenue Comparison Visualization
+            fig1, ax1 = plt.subplots(figsize=(12, 6))
+            revenue_plot = sns.barplot(
+                data=results_df,
+                x='capacity',
+                y='dp_revenue',
+                hue='demand_scenario',
+                errorbar=('ci', 95),
+                ax=ax1
+            )
+            ax1.set_title('Dynamic Programming Revenue by Capacity and Demand Scenario')
+            ax1.set_xlabel('Capacity Level')
+            ax1.set_ylabel('Revenue')
             plt.tight_layout()
-            plt.savefig(self.output_dir / 'revenue_comparison.png')
-            plt.close()
+            plt.savefig(self.output_dir / 'revenue_comparison.png', dpi=300, bbox_inches='tight')
+            plt.close(fig1)
+            logger.info("Generated revenue comparison plot")
 
-            # 2. Revenue Gap Box Plot
-            plt.figure()
-            sns.boxplot(data=results_df, x='capacity', y='revenue_gap',
-                       hue='market_condition')
-            plt.title('Revenue Gap Distribution by Capacity and Market Condition')
-            plt.xlabel('Capacity Level')
-            plt.ylabel('Revenue Gap (%)')
+            # 2. Revenue Gap Distribution
+            fig2, ax2 = plt.subplots(figsize=(12, 6))
+            gap_plot = sns.boxplot(
+                data=results_df,
+                x='capacity',
+                y='revenue_gap',
+                hue='market_condition',
+                ax=ax2
+            )
+            ax2.set_title('Revenue Gap Distribution by Capacity and Market Condition')
+            ax2.set_xlabel('Capacity Level')
+            ax2.set_ylabel('Revenue Gap (%)')
             plt.tight_layout()
-            plt.savefig(self.output_dir / 'revenue_gap_distribution.png')
-            plt.close()
+            plt.savefig(self.output_dir / 'revenue_gap_distribution.png', dpi=300, bbox_inches='tight')
+            plt.close(fig2)
+            logger.info("Generated revenue gap distribution plot")
 
             # 3. Solution Time Comparison
-            plt.figure()
-            time_data = pd.melt(results_df, 
-                               id_vars=['capacity'],
-                               value_vars=['dp_time', 'saa_time'],
-                               var_name='Algorithm',
-                               value_name='Time (seconds)')
-            sns.boxplot(data=time_data, x='capacity', y='Time (seconds)',
-                       hue='Algorithm')
-            plt.title('Solution Time Comparison')
-            plt.xlabel('Capacity Level')
+            fig3, ax3 = plt.subplots(figsize=(12, 6))
+            time_data = pd.melt(
+                results_df,
+                id_vars=['capacity'],
+                value_vars=['dp_time', 'saa_time'],
+                var_name='Algorithm',
+                value_name='Time (seconds)'
+            )
+            time_plot = sns.boxplot(
+                data=time_data,
+                x='capacity',
+                y='Time (seconds)',
+                hue='Algorithm',
+                ax=ax3
+            )
+            ax3.set_title('Solution Time Comparison by Algorithm')
+            ax3.set_xlabel('Capacity Level')
             plt.tight_layout()
-            plt.savefig(self.output_dir / 'solution_time_comparison.png')
-            plt.close()
+            plt.savefig(self.output_dir / 'solution_time_comparison.png', dpi=300, bbox_inches='tight')
+            plt.close(fig3)
+            logger.info("Generated solution time comparison plot")
 
             logger.info("Successfully created all visualizations")
 
         except Exception as e:
             logger.error(f"Error creating visualizations: {str(e)}")
+            # Print additional debugging information
+            logger.error("Matplotlib version: " + matplotlib.__version__)
+            logger.error("Seaborn version: " + sns.__version__)
             raise
+
+        finally:
+            # Ensure all plots are closed
+            plt.close('all')
     
     def run_full_experiment(self, num_workers: int = 4):
         """Execute the complete experiment workflow."""
