@@ -1,0 +1,17 @@
+{
+    "overall": {
+        "mean_revenue_gap": 1.9005154394420414,
+        "std_revenue_gap": 2.9501482990722434,
+        "mean_dp_time": 0.543180025925926,
+        "mean_saa_time": 13.301487788741971
+    },
+    "statistical_tests": {
+        "t_statistic": 18.778865218533277,
+        "p_value": 1.4071388509101208e-65
+    },
+    "confidence_intervals": {
+        "revenue_gap_lower": 1.697045780256528,
+        "revenue_gap_upper": 2.103985098627555
+    },
+    "by_capacity": {
+        
