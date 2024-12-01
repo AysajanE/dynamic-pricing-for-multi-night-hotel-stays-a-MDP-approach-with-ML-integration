@@ -1,3 +1,6 @@
+# Experiment 1: DP vs. SAA Solution Quality Assessment
+# Small Scale Implementation
+
 import numpy as np
 import pandas as pd
 from scipy import stats

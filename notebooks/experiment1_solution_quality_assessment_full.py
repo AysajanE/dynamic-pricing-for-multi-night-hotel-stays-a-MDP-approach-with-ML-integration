@@ -1,3 +1,6 @@
+# Experiment 1: DP vs. SAA Solution Quality Assessment
+# Full Scale Implementation
+
 import numpy as np
 import pandas as pd
 from scipy import stats
@@ -164,26 +167,26 @@ class Experiment1Runner:
     def analyze_results(self, results_df: pd.DataFrame) -> Dict:
         """Perform statistical analysis on experiment results."""
         analysis = {}
-        
+
         # Overall statistics
         analysis['overall'] = {
-            'mean_revenue_gap': results_df['revenue_gap'].mean(),
-            'std_revenue_gap': results_df['revenue_gap'].std(),
-            'mean_dp_time': results_df['dp_time'].mean(),
-            'mean_saa_time': results_df['saa_time'].mean()
+            'mean_revenue_gap': float(results_df['revenue_gap'].mean()),  # Convert to float
+            'std_revenue_gap': float(results_df['revenue_gap'].std()),
+            'mean_dp_time': float(results_df['dp_time'].mean()),
+            'mean_saa_time': float(results_df['saa_time'].mean())
         }
-        
+
         # Paired t-test for revenue differences
         t_stat, p_value = stats.ttest_rel(
             results_df['dp_revenue'],
             results_df['saa_revenue']
         )
-        
+
         analysis['statistical_tests'] = {
-            't_statistic': t_stat,
-            'p_value': p_value
+            't_statistic': float(t_stat),  # Convert to float
+            'p_value': float(p_value)
         }
-        
+
         # Confidence intervals for revenue gap
         ci = stats.t.interval(
             self.confidence_level,
@@ -191,117 +194,192 @@ class Experiment1Runner:
             loc=results_df['revenue_gap'].mean(),
             scale=stats.sem(results_df['revenue_gap'])
         )
-        
+
         analysis['confidence_intervals'] = {
-            'revenue_gap_lower': ci[0],
-            'revenue_gap_upper': ci[1]
+            'revenue_gap_lower': float(ci[0]),  # Convert to float
+            'revenue_gap_upper': float(ci[1])
         }
-        
+
         # Analysis by capacity level
-        analysis['by_capacity'] = results_df.groupby('capacity').agg({
+        capacity_analysis = results_df.groupby('capacity').agg({
             'revenue_gap': ['mean', 'std'],
             'dp_time': 'mean',
             'saa_time': 'mean'
-        }).to_dict()
-        
+        })
+
+        # Convert the nested dictionary structure to a more JSON-serializable format
+        analysis['by_capacity'] = {
+            str(cap): {  # Convert capacity to string
+                'revenue_gap_mean': float(stats['revenue_gap']['mean']),
+                'revenue_gap_std': float(stats['revenue_gap']['std']),
+                'dp_time_mean': float(stats['dp_time']['mean']),
+                'saa_time_mean': float(stats['saa_time']['mean'])
+            }
+            for cap, stats in capacity_analysis.iterrows()
+        }
+
         # Save analysis results
         with open(self.output_dir / 'analysis_results.json', 'w') as f:
             json.dump(analysis, f, indent=4)
-        
+
         return analysis
-    
-    def create_visualizations(self, results_df: pd.DataFrame):
-        """Create and save visualizations of experimental results."""
-        # Set style
-        plt.style.use('seaborn')
-        
-        # 1. Revenue Comparison Bar Chart
-        plt.figure(figsize=(12, 6))
-        sns.barplot(data=results_df, x='capacity', y='dp_revenue', 
-                   hue='demand_scenario', ci=95)
-        plt.title('DP Revenue by Capacity and Demand Scenario')
-        plt.xlabel('Capacity Level')
-        plt.ylabel('Revenue')
-        plt.savefig(self.output_dir / 'revenue_comparison.png')
-        plt.close()
-        
-        # 2. Revenue Gap Box Plot
-        plt.figure(figsize=(12, 6))
-        sns.boxplot(data=results_df, x='capacity', y='revenue_gap',
-                   hue='market_condition')
-        plt.title('Revenue Gap Distribution by Capacity and Market Condition')
-        plt.xlabel('Capacity Level')
-        plt.ylabel('Revenue Gap (%)')
-        plt.savefig(self.output_dir / 'revenue_gap_distribution.png')
-        plt.close()
-        
-        # 3. Solution Time Comparison
-        plt.figure(figsize=(12, 6))
-        results_df_melted = pd.melt(results_df, 
-                                   id_vars=['capacity'],
-                                   value_vars=['dp_time', 'saa_time'],
-                                   var_name='Algorithm',
-                                   value_name='Time (seconds)')
-        sns.boxplot(data=results_df_melted, x='capacity', y='Time (seconds)',
-                   hue='Algorithm')
-        plt.title('Solution Time Comparison')
-        plt.xlabel('Capacity Level')
-        plt.savefig(self.output_dir / 'solution_time_comparison.png')
-        plt.close()
-    
+
     def generate_report(self, results_df: pd.DataFrame, analysis: Dict):
         """Generate a comprehensive report of experimental results."""
-        report = []
-        report.append("# Experiment 1: Solution Quality Assessment Report")
-        report.append("\n## Overview")
-        report.append(f"- Total test instances: {len(results_df)}")
-        report.append(f"- Capacity levels: {self.capacity_levels}")
-        report.append(f"- Demand scenarios: {self.demand_scenarios}")
-        report.append(f"- Market conditions: {self.market_conditions}")
-        report.append(f"- Replications per configuration: {self.num_replications}")
-        
-        report.append("\n## Overall Results")
-        report.append(f"- Mean revenue gap: {analysis['overall']['mean_revenue_gap']:.2f}%")
-        report.append(f"- Revenue gap 95% CI: [{analysis['confidence_intervals']['revenue_gap_lower']:.2f}%, "
-                     f"{analysis['confidence_intervals']['revenue_gap_upper']:.2f}%]")
-        report.append(f"- Mean DP solution time: {analysis['overall']['mean_dp_time']:.2f} seconds")
-        report.append(f"- Mean SAA solution time: {analysis['overall']['mean_saa_time']:.2f} seconds")
-        
-        report.append("\n## Statistical Analysis")
-        report.append(f"- T-statistic: {analysis['statistical_tests']['t_statistic']:.4f}")
-        report.append(f"- P-value: {analysis['statistical_tests']['p_value']:.4f}")
-        
-        report.append("\n## Results by Capacity Level")
-        for capacity in self.capacity_levels:
-            cap_data = analysis['by_capacity']
-            report.append(f"\nCapacity = {capacity}")
-            report.append(f"- Mean revenue gap: {cap_data['revenue_gap']['mean'][capacity]:.2f}%")
-            report.append(f"- Revenue gap std: {cap_data['revenue_gap']['std'][capacity]:.2f}%")
-            report.append(f"- Mean DP time: {cap_data['dp_time']['mean'][capacity]:.2f} seconds")
-            report.append(f"- Mean SAA time: {cap_data['saa_time']['mean'][capacity]:.2f} seconds")
-        
-        # Save report
-        with open(self.output_dir / 'experiment_report.md', 'w') as f:
-            f.write('\n'.join(report))
+        try:
+            report = []
+            report.append("# Experiment 1: Solution Quality Assessment Report")
+            report.append("\n## Overview")
+            report.append(f"- Total test instances: {len(results_df)}")
+            report.append(f"- Capacity levels: {sorted(results_df['capacity'].unique())}")
+            report.append(f"- Demand scenarios: {sorted(results_df['demand_scenario'].unique())}")
+            report.append(f"- Market conditions: {sorted(results_df['market_condition'].unique())}")
+            report.append(f"- Replications per configuration: {self.num_replications}")
+
+            report.append("\n## Overall Results")
+            report.append(f"- Mean revenue gap: {analysis['overall']['mean_revenue_gap']:.2f}%")
+            report.append(f"- Revenue gap 95% CI: [{analysis['confidence_intervals']['revenue_gap_lower']:.2f}%, "
+                         f"{analysis['confidence_intervals']['revenue_gap_upper']:.2f}%]")
+            report.append(f"- Mean DP solution time: {analysis['overall']['mean_dp_time']:.2f} seconds")
+            report.append(f"- Mean SAA solution time: {analysis['overall']['mean_saa_time']:.2f} seconds")
+
+            report.append("\n## Statistical Analysis")
+            report.append(f"- T-statistic: {analysis['statistical_tests']['t_statistic']:.4f}")
+            report.append(f"- P-value: {analysis['statistical_tests']['p_value']:.4f}")
+
+            report.append("\n## Results by Capacity Level")
+            for capacity in sorted(results_df['capacity'].unique()):
+                cap_stats = analysis['by_capacity'][str(capacity)]
+                report.append(f"\nCapacity = {capacity}")
+                report.append(f"- Mean revenue gap: {cap_stats['revenue_gap_mean']:.2f}%")
+                report.append(f"- Revenue gap std: {cap_stats['revenue_gap_std']:.2f}%")
+                report.append(f"- Mean DP time: {cap_stats['dp_time_mean']:.2f} seconds")
+                report.append(f"- Mean SAA time: {cap_stats['saa_time_mean']:.2f} seconds")
+
+            # Add summary statistics by demand scenario
+            report.append("\n## Results by Demand Scenario")
+            demand_stats = results_df.groupby('demand_scenario').agg({
+                'revenue_gap': ['mean', 'std'],
+                'dp_time': 'mean',
+                'saa_time': 'mean'
+            })
+
+            for scenario in sorted(results_df['demand_scenario'].unique()):
+                stats = demand_stats.loc[scenario]
+                report.append(f"\nScenario: {scenario}")
+                report.append(f"- Mean revenue gap: {stats['revenue_gap']['mean']:.2f}%")
+                report.append(f"- Revenue gap std: {stats['revenue_gap']['std']:.2f}%")
+                report.append(f"- Mean DP time: {stats['dp_time']['mean']:.2f} seconds")
+                report.append(f"- Mean SAA time: {stats['saa_time']['mean']:.2f} seconds")
+
+            # Add summary statistics by market condition
+            report.append("\n## Results by Market Condition")
+            market_stats = results_df.groupby('market_condition').agg({
+                'revenue_gap': ['mean', 'std'],
+                'dp_time': 'mean',
+                'saa_time': 'mean'
+            })
+
+            for market in sorted(results_df['market_condition'].unique()):
+                stats = market_stats.loc[market]
+                report.append(f"\nMarket: {market}")
+                report.append(f"- Mean revenue gap: {stats['revenue_gap']['mean']:.2f}%")
+                report.append(f"- Revenue gap std: {stats['revenue_gap']['std']:.2f}%")
+                report.append(f"- Mean DP time: {stats['dp_time']['mean']:.2f} seconds")
+                report.append(f"- Mean SAA time: {stats['saa_time']['mean']:.2f} seconds")
+
+            # Save report
+            with open(self.output_dir / 'experiment_report.md', 'w') as f:
+                f.write('\n'.join(report))
+
+            logger.info("Report generated successfully")
+
+        except Exception as e:
+            logger.error(f"Error generating report: {str(e)}")
+            logger.error("Results DataFrame head:")
+            logger.error(results_df.head())
+            logger.error("Analysis structure:")
+            logger.error(json.dumps(analysis, indent=2))
+            raise
+            
+    def create_visualizations(self, results_df: pd.DataFrame):
+        """Create and save visualizations of experimental results."""
+        # Set style and figure size
+        sns.set_theme()
+        sns.set_style("whitegrid")
+        plt.rcParams['figure.figsize'] = (12, 6)
+
+        try:
+            # 1. Revenue Comparison Bar Chart
+            plt.figure()
+            sns.barplot(data=results_df, x='capacity', y='dp_revenue', 
+                       hue='demand_scenario', errorbar=('ci', 95))
+            plt.title('DP Revenue by Capacity and Demand Scenario')
+            plt.xlabel('Capacity Level')
+            plt.ylabel('Revenue')
+            plt.tight_layout()
+            plt.savefig(self.output_dir / 'revenue_comparison.png')
+            plt.close()
+
+            # 2. Revenue Gap Box Plot
+            plt.figure()
+            sns.boxplot(data=results_df, x='capacity', y='revenue_gap',
+                       hue='market_condition')
+            plt.title('Revenue Gap Distribution by Capacity and Market Condition')
+            plt.xlabel('Capacity Level')
+            plt.ylabel('Revenue Gap (%)')
+            plt.tight_layout()
+            plt.savefig(self.output_dir / 'revenue_gap_distribution.png')
+            plt.close()
+
+            # 3. Solution Time Comparison
+            plt.figure()
+            time_data = pd.melt(results_df, 
+                               id_vars=['capacity'],
+                               value_vars=['dp_time', 'saa_time'],
+                               var_name='Algorithm',
+                               value_name='Time (seconds)')
+            sns.boxplot(data=time_data, x='capacity', y='Time (seconds)',
+                       hue='Algorithm')
+            plt.title('Solution Time Comparison')
+            plt.xlabel('Capacity Level')
+            plt.tight_layout()
+            plt.savefig(self.output_dir / 'solution_time_comparison.png')
+            plt.close()
+
+            logger.info("Successfully created all visualizations")
+
+        except Exception as e:
+            logger.error(f"Error creating visualizations: {str(e)}")
+            raise
     
     def run_full_experiment(self, num_workers: int = 4):
         """Execute the complete experiment workflow."""
         logger.info("Starting full experiment execution")
-        
-        # Run experiments
-        results_df = self.run_experiment(num_workers)
-        
-        # Analyze results
-        analysis = self.analyze_results(results_df)
-        
-        # Create visualizations
-        self.create_visualizations(results_df)
-        
-        # Generate report
-        self.generate_report(results_df, analysis)
-        
-        logger.info("Experiment execution completed")
-        return results_df, analysis
+
+        try:
+            # Run experiments
+            results_df = self.run_experiment(num_workers)
+            logger.info("Experiments completed successfully")
+
+            # Analyze results
+            analysis = self.analyze_results(results_df)
+            logger.info("Analysis completed successfully")
+
+            # Generate report
+            self.generate_report(results_df, analysis)
+            logger.info("Report generation completed successfully")
+
+            # Create visualizations
+            self.create_visualizations(results_df)
+            logger.info("Visualization creation completed successfully")
+
+            logger.info("Experiment execution completed")
+            return results_df, analysis
+
+        except Exception as e:
+            logger.error(f"Error in experiment execution: {str(e)}")
+            raise
     
 if __name__ == "__main__":
     # Add process safety for macOS
@@ -311,7 +389,7 @@ if __name__ == "__main__":
     # Run the complete experiment
     experiment = Experiment1Runner()
     try:
-        results, analysis = experiment.run_full_experiment(num_workers=4)
+        results, analysis = experiment.run_full_experiment(num_workers=8)
         print("Experiment completed successfully")
         print(f"Results saved to: {experiment.output_dir}")
     except Exception as e:

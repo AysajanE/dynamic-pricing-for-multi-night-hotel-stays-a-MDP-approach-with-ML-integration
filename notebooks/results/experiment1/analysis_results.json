@@ -1,17 +1,36 @@
 {
     "overall": {
-        "mean_revenue_gap": 1.9005154394420414,
-        "std_revenue_gap": 2.9501482990722434,
-        "mean_dp_time": 0.543180025925926,
-        "mean_saa_time": 13.301487788741971
+        "mean_revenue_gap": 3.091242559146298,
+        "std_revenue_gap": 2.773620176564778,
+        "mean_dp_time": 1.1557358308641976,
+        "mean_saa_time": 13.913230357641055
     },
     "statistical_tests": {
-        "t_statistic": 18.778865218533277,
-        "p_value": 1.4071388509101208e-65
+        "t_statistic": 25.323432320202656,
+        "p_value": 1.2098157199934702e-104
     },
     "confidence_intervals": {
-        "revenue_gap_lower": 1.697045780256528,
-        "revenue_gap_upper": 2.103985098627555
+        "revenue_gap_lower": 2.8999479207672128,
+        "revenue_gap_upper": 3.282537197525383
     },
     "by_capacity": {
-        
+        "3": {
+            "revenue_gap_mean": 3.4000869623206187,
+            "revenue_gap_std": 3.276587897039057,
+            "dp_time_mean": 0.334265037037037,
+            "saa_time_mean": 14.110628660519918
+        },
+        "5": {
+            "revenue_gap_mean": 3.0070751549419024,
+            "revenue_gap_std": 2.4468419150908693,
+            "dp_time_mean": 1.0057081888888888,
+            "saa_time_mean": 14.117435525964808
+        },
+        "7": {
+            "revenue_gap_mean": 2.866565560176372,
+            "revenue_gap_std": 2.5019037726874234,
+            "dp_time_mean": 2.1272342666666666,
+            "saa_time_mean": 13.51162688643844
+        }
+    }
+}

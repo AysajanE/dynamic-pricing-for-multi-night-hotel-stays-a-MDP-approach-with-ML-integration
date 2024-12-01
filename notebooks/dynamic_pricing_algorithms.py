@@ -1,6 +1,9 @@
 import itertools
 import numpy as np
 import pandas as pd
+from scipy import stats
+from scipy.optimize import minimize_scalar
+
 from typing import Dict, Tuple, List
 import logging
 from dataclasses import dataclass
@@ -16,9 +19,12 @@ class DPState:
     """Immutable state representation for Dynamic Programming solution."""
     capacity: Tuple[int, ...]  # (capacity_day1, capacity_day2, capacity_day3)
     time: int
-
+    
 class DynamicProgramming:
-    """Dynamic Programming solution for hotel revenue optimization."""
+    """
+    Optimized Dynamic Programming solution leveraging concavity properties
+    for hotel revenue optimization with multiple-night stays.
+    """
     
     def __init__(self, instance: Dict):
         """Initialize using test instance from data_generator."""
@@ -33,21 +39,17 @@ class DynamicProgramming:
         self.arrival_probs = instance['arrival_probabilities']
         self.price_sensitivity = instance['reservation_price_params']
         
-        # Define number of price levels (can be adjusted based on problem size)
-        self.num_price_levels = 3  # Using 3 price levels as an example
+        # Pre-compute class information for efficiency
+        self._precompute_class_info()
         
-        # Pre-compute price levels for each day
-        self.price_levels = np.linspace(self.price_min, self.price_max, self.num_price_levels)
+        # Initialize value function and policy
+        self.value_function: Dict[DPState, float] = {}
+        self.optimal_policy: Dict[DPState, Dict[int, float]] = {}
         
-        # Generate all possible price combinations for N days
-        self.price_combinations = list(itertools.product(self.price_levels, repeat=self.N))
-        logger.info(f"Generated {len(self.price_combinations)} price combinations")
+        logger.info(f"Initialized DP solver with {len(self.booking_classes)} booking classes")
         
-        # # Use exactly 3 price levels as specified
-        # self.price_levels = [self.price_min, (self.price_min + self.price_max)/2, self.price_max]
-        # self.price_combinations = list(itertools.product(self.price_levels, repeat=self.N))
-        
-        # Pre-compute stay patterns
+    def _precompute_class_info(self):
+        """Pre-compute booking class information for efficient lookup."""
         self.class_stays = {
             (arr, dep): set(range(arr - 1, dep)) 
             for arr, dep in self.booking_classes
@@ -56,84 +58,60 @@ class DynamicProgramming:
             (arr, dep): dep - arr + 1 
             for arr, dep in self.booking_classes
         }
-        
-        # Initialize value function and policy
-        self.value_function: Dict[DPState, float] = {}
-        self.optimal_policy: Dict[DPState, Dict[int, float]] = {}
-        
-    def solve(self) -> Tuple[Dict[Tuple[int, ...], Dict[int, float]], float]:
-        """Solve the DP problem and return value functions and optimal policy."""
-        logger.info("Starting DP solution")
-        
-        # Initialize boundary conditions
-        self._initialize_boundary_conditions()
-        
-        # Backward induction
-        for t in range(self.T, 0, -1):
-            logger.info(f"Processing time period {t}")
-            for capacity in self._generate_capacity_vectors():
-                state = DPState(capacity=capacity, time=t)
-                optimal_value, optimal_prices = self._compute_optimal_decision(state)
-                self.value_function[state] = optimal_value
-                
-                # Store policy as dictionary mapping day to price
-                self.optimal_policy[state] = {
-                    i+1: price for i, price in enumerate(optimal_prices)
-                }
-        
-        # Extract and format results for capacity = 5
-        results = {}
-        for state, prices in self.optimal_policy.items():
-            if state.capacity[0] == 5:  # Only for first day capacity = 5
-                results[state.capacity] = prices
-        
-        # Get optimal value for initial state
-        initial_state = DPState(
-            capacity=tuple(self.C for _ in range(self.N)),
-            time=1
-        )
-        optimal_value = self.value_function[initial_state]
-        
-        return results, optimal_value
+    def _compute_purchase_probability(self, price: float, epsilon: float) -> float:
+        """
+        Compute purchase probability using linear demand function.
+        F̄_b(p_t^b) = 1 - ε_b * p_t^b
+        """
+        return max(0.0, min(1.0, 1.0 - epsilon * price))    
     
-    def _initialize_boundary_conditions(self):
-        """Initialize boundary conditions."""
-        for capacity in self._generate_capacity_vectors():
-            # Terminal period conditions
-            terminal_state = DPState(capacity=capacity, time=self.T + 1)
-            self.value_function[terminal_state] = 0.0
+    def _optimize_state_prices(self, state: DPState) -> Tuple[float, Dict[int, float]]:
+        """
+        Optimize prices for current state leveraging concavity.
+        
+        Uses gradient-based optimization for each day's price within bounds,
+        taking advantage of the problem's concavity property.
+        """
+        optimal_prices = {}
+        total_value = 0.0
+        
+        # Initialize with current prices at midpoint
+        current_prices = {i: (self.price_min + self.price_max) / 2 
+                        for i in range(self.N)}
+        
+        # Optimize each day's price separately using concavity
+        for day in range(self.N):
+            def negative_revenue(price):
+                """Objective function for single-day price optimization."""
+                current_prices[day] = price
+                return -self._compute_expected_value(state, current_prices)
             
-            # Zero capacity conditions for all periods
-            if sum(capacity) == 0:
-                for t in range(1, self.T + 2):
-                    state = DPState(capacity=capacity, time=t)
-                    self.value_function[state] = 0.0
-    
-    def _compute_optimal_decision(self, state: DPState) -> Tuple[float, Tuple[float, ...]]:
-        """Compute optimal value and prices for a state."""
-        max_value = float('-inf')
-        optimal_prices = self.price_levels[0:self.N]  # Default to minimum prices
+            # Use scipy's minimize_scalar with bounds
+            result = minimize_scalar(
+                negative_revenue,
+                bounds=(self.price_min, self.price_max),
+                method='bounded'
+            )
+            
+            optimal_prices[day] = result.x
+            total_value = -result.fun
         
-        for prices in self.price_combinations:
-            value = self._compute_expected_value(state, prices)
-            if value > max_value:
-                max_value = value
-                optimal_prices = prices
-        
-        return max_value, optimal_prices
+        return total_value, optimal_prices
     
-    def _compute_expected_value(self, state: DPState, prices: Tuple[float, ...]) -> float:
-        """Compute expected value for state-prices pair."""
+    def _compute_expected_value(self, state: DPState, prices: Dict[int, float]) -> float:
+        """
+        Compute expected value for state-prices pair with efficient implementation.
+        """
         value = 0.0
         current_probs = self.arrival_probs[state.time]
         
-        # No arrival case
+        # Handle no arrival case
         no_arrival_prob = 1.0 - sum(current_probs.values())
         if no_arrival_prob > 0:
             next_state = DPState(capacity=state.capacity, time=state.time + 1)
             value += no_arrival_prob * self.value_function[next_state]
         
-        # For each possible booking request
+        # Process each possible booking request efficiently
         for (arrival, departure), arrival_prob in current_probs.items():
             if arrival_prob <= 0:
                 continue
@@ -147,35 +125,265 @@ class DynamicProgramming:
                 avg_price = sum(stay_prices) / self.stay_lengths[(arrival, departure)]
                 
                 eps = self.price_sensitivity[(arrival, departure)]
-                accept_prob = max(0, 1 - eps * avg_price)
+                accept_prob = self._compute_purchase_probability(avg_price, eps)
                 
                 if accept_prob > 0:
-                    # Acceptance case
+                    # Handle acceptance case
                     next_capacity = list(state.capacity)
                     for day in stay_nights:
                         next_capacity[day] -= 1
                     
-                    next_state = DPState(capacity=tuple(next_capacity), time=state.time + 1)
+                    next_state = DPState(
+                        capacity=tuple(next_capacity), 
+                        time=state.time + 1
+                    )
                     immediate_revenue = sum(stay_prices)
                     future_value = self.value_function[next_state]
                     
                     value += arrival_prob * accept_prob * (immediate_revenue + future_value)
                 
-                # Rejection case
+                # Handle rejection case
                 if accept_prob < 1:
                     reject_prob = 1 - accept_prob
                     next_state = DPState(capacity=state.capacity, time=state.time + 1)
                     value += arrival_prob * reject_prob * self.value_function[next_state]
             else:
-                # No capacity case
+                # Handle no capacity case
                 next_state = DPState(capacity=state.capacity, time=state.time + 1)
                 value += arrival_prob * self.value_function[next_state]
         
         return value
     
+    def solve(self) -> Tuple[Dict[Tuple[int, ...], Dict[int, float]], float]:
+        """
+        Solve the DP problem efficiently using concavity properties.
+        
+        Returns:
+            Tuple of (optimal_policy, optimal_value)
+        """
+        start_time = time.time()
+        logger.info("Starting optimized DP solution")
+        
+        # Initialize boundary conditions
+        self._initialize_boundary_conditions()
+        
+        # Backward induction with efficient price optimization
+        for t in range(self.T, 0, -1):
+            period_start = time.time()
+            states_processed = 0
+            
+            for capacity in self._generate_capacity_vectors():
+                state = DPState(capacity=capacity, time=t)
+                optimal_value, optimal_prices = self._optimize_state_prices(state)
+                
+                self.value_function[state] = optimal_value
+                self.optimal_policy[state] = optimal_prices
+                states_processed += 1
+            
+            period_time = time.time() - period_start
+            logger.info(
+                f"Processed period {t}: {states_processed} states "
+                f"in {period_time:.2f} seconds"
+            )
+        
+        # Extract initial state value and policy
+        initial_state = DPState(
+            capacity=tuple(self.C for _ in range(self.N)),
+            time=1
+        )
+        optimal_value = self.value_function[initial_state]
+        
+        total_time = time.time() - start_time
+        logger.info(
+            f"DP solution completed in {total_time:.2f} seconds. "
+            f"Optimal value: {optimal_value:.2f}"
+        )
+        
+        return self.optimal_policy, optimal_value
+    
+    def _initialize_boundary_conditions(self):
+        """Initialize boundary conditions efficiently."""
+        logger.info("Initializing boundary conditions")
+        
+        # Terminal period conditions
+        for capacity in self._generate_capacity_vectors():
+            terminal_state = DPState(capacity=capacity, time=self.T + 1)
+            self.value_function[terminal_state] = 0.0
+            
+            # Zero capacity conditions for all periods
+            if sum(capacity) == 0:
+                for t in range(1, self.T + 2):
+                    state = DPState(capacity=capacity, time=t)
+                    self.value_function[state] = 0.0
+                    
     def _generate_capacity_vectors(self) -> List[Tuple[int, ...]]:
-        """Generate all possible capacity vectors."""
-        return [tuple(cap) for cap in itertools.product(range(self.C + 1), repeat=self.N)]
+        """
+        Generate capacity vectors efficiently using numpy.
+        """
+        capacities = np.array(
+            np.meshgrid(
+                *[range(self.C + 1) for _ in range(self.N)]
+            )
+        ).T.reshape(-1, self.N)
+        
+        return [tuple(cap) for cap in capacities]
+
+# class DynamicProgramming:
+#     """Dynamic Programming solution for hotel revenue optimization."""
+    
+#     def __init__(self, instance: Dict):
+#         """Initialize using test instance from data_generator."""
+#         self.params = instance['parameters']
+#         self.T = self.params.T
+#         self.N = self.params.N
+#         self.C = self.params.C
+#         self.price_min = self.params.price_min
+#         self.price_max = self.params.price_max
+        
+#         self.booking_classes = instance['booking_classes']
+#         self.arrival_probs = instance['arrival_probabilities']
+#         self.price_sensitivity = instance['reservation_price_params']
+        
+#         # Define number of price levels (can be adjusted based on problem size)
+#         self.num_price_levels = 3  # Using 3 price levels as an example
+        
+#         # Pre-compute price levels for each day
+#         self.price_levels = np.linspace(self.price_min, self.price_max, self.num_price_levels)
+        
+#         # Generate all possible price combinations for N days
+#         self.price_combinations = list(itertools.product(self.price_levels, repeat=self.N))
+#         logger.info(f"Generated {len(self.price_combinations)} price combinations")
+
+        
+#         # Pre-compute stay patterns
+#         self.class_stays = {
+#             (arr, dep): set(range(arr - 1, dep)) 
+#             for arr, dep in self.booking_classes
+#         }
+#         self.stay_lengths = {
+#             (arr, dep): dep - arr + 1 
+#             for arr, dep in self.booking_classes
+#         }
+        
+#         # Initialize value function and policy
+#         self.value_function: Dict[DPState, float] = {}
+#         self.optimal_policy: Dict[DPState, Dict[int, float]] = {}
+        
+#     def solve(self) -> Tuple[Dict[Tuple[int, ...], Dict[int, float]], float]:
+#         """Solve the DP problem and return value functions and optimal policy."""
+#         logger.info("Starting DP solution")
+        
+#         # Initialize boundary conditions
+#         self._initialize_boundary_conditions()
+        
+#         # Backward induction
+#         for t in range(self.T, 0, -1):
+#             logger.info(f"Processing time period {t}")
+#             for capacity in self._generate_capacity_vectors():
+#                 state = DPState(capacity=capacity, time=t)
+#                 optimal_value, optimal_prices = self._compute_optimal_decision(state)
+#                 self.value_function[state] = optimal_value
+                
+#                 # Store policy as dictionary mapping day to price
+#                 self.optimal_policy[state] = {
+#                     i+1: price for i, price in enumerate(optimal_prices)
+#                 }
+        
+#         # Extract and format results for capacity = 5
+#         results = {}
+#         for state, prices in self.optimal_policy.items():
+#             if state.capacity[0] == 5:  # Only for first day capacity = 5
+#                 results[state.capacity] = prices
+        
+#         # Get optimal value for initial state
+#         initial_state = DPState(
+#             capacity=tuple(self.C for _ in range(self.N)),
+#             time=1
+#         )
+#         optimal_value = self.value_function[initial_state]
+        
+#         return results, optimal_value
+    
+#     def _initialize_boundary_conditions(self):
+#         """Initialize boundary conditions."""
+#         for capacity in self._generate_capacity_vectors():
+#             # Terminal period conditions
+#             terminal_state = DPState(capacity=capacity, time=self.T + 1)
+#             self.value_function[terminal_state] = 0.0
+            
+#             # Zero capacity conditions for all periods
+#             if sum(capacity) == 0:
+#                 for t in range(1, self.T + 2):
+#                     state = DPState(capacity=capacity, time=t)
+#                     self.value_function[state] = 0.0
+    
+#     def _compute_optimal_decision(self, state: DPState) -> Tuple[float, Tuple[float, ...]]:
+#         """Compute optimal value and prices for a state."""
+#         max_value = float('-inf')
+#         optimal_prices = self.price_levels[0:self.N]  # Default to minimum prices
+        
+#         for prices in self.price_combinations:
+#             value = self._compute_expected_value(state, prices)
+#             if value > max_value:
+#                 max_value = value
+#                 optimal_prices = prices
+        
+#         return max_value, optimal_prices
+    
+#     def _compute_expected_value(self, state: DPState, prices: Tuple[float, ...]) -> float:
+#         """Compute expected value for state-prices pair."""
+#         value = 0.0
+#         current_probs = self.arrival_probs[state.time]
+        
+#         # No arrival case
+#         no_arrival_prob = 1.0 - sum(current_probs.values())
+#         if no_arrival_prob > 0:
+#             next_state = DPState(capacity=state.capacity, time=state.time + 1)
+#             value += no_arrival_prob * self.value_function[next_state]
+        
+#         # For each possible booking request
+#         for (arrival, departure), arrival_prob in current_probs.items():
+#             if arrival_prob <= 0:
+#                 continue
+                
+#             stay_nights = self.class_stays[(arrival, departure)]
+#             has_capacity = all(state.capacity[day] > 0 for day in stay_nights)
+            
+#             if has_capacity:
+#                 # Calculate average price and acceptance probability
+#                 stay_prices = [prices[day] for day in stay_nights]
+#                 avg_price = sum(stay_prices) / self.stay_lengths[(arrival, departure)]
+                
+#                 eps = self.price_sensitivity[(arrival, departure)]
+#                 accept_prob = max(0, 1 - eps * avg_price)
+                
+#                 if accept_prob > 0:
+#                     # Acceptance case
+#                     next_capacity = list(state.capacity)
+#                     for day in stay_nights:
+#                         next_capacity[day] -= 1
+                    
+#                     next_state = DPState(capacity=tuple(next_capacity), time=state.time + 1)
+#                     immediate_revenue = sum(stay_prices)
+#                     future_value = self.value_function[next_state]
+                    
+#                     value += arrival_prob * accept_prob * (immediate_revenue + future_value)
+                
+#                 # Rejection case
+#                 if accept_prob < 1:
+#                     reject_prob = 1 - accept_prob
+#                     next_state = DPState(capacity=state.capacity, time=state.time + 1)
+#                     value += arrival_prob * reject_prob * self.value_function[next_state]
+#             else:
+#                 # No capacity case
+#                 next_state = DPState(capacity=state.capacity, time=state.time + 1)
+#                 value += arrival_prob * self.value_function[next_state]
+        
+#         return value
+    
+#     def _generate_capacity_vectors(self) -> List[Tuple[int, ...]]:
+#         """Generate all possible capacity vectors."""
+#         return [tuple(cap) for cap in itertools.product(range(self.C + 1), repeat=self.N)]
 
 class StochasticApproximation:
     """
