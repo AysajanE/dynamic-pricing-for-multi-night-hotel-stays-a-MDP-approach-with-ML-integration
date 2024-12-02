@@ -90,55 +90,56 @@ class Experiment1Runner:
                                 saa_prices: Dict,
                                 saa_revenue: float,
                                 tolerance: float = 1e-10) -> bool:
-    """
-    Verify that revenue calculations match exactly between DP and SAA evaluations.
-    
-    Args:
-        path: Evaluation path
-        dp_policy: DP policy mapping states to prices
-        dp_revenue: Total revenue from DP evaluation
-        saa_prices: SAA price vectors
-        saa_revenue: Total revenue from SAA evaluation
-        tolerance: Numerical tolerance for floating point comparisons
-    
-    Returns:
-        bool: True if revenue calculations are consistent
-    """
-    # Recalculate revenues step by step
-    dp_revenue_check = 0.0
-    saa_revenue_check = 0.0
-    capacity = np.full(self.N, self.C, dtype=np.int32)
-    
-    for t, bt, qt in path:
-        if bt is not None:
-            # Check DP revenue calculation
-            state = DPState(capacity=tuple(capacity), time=t)
-            if state in dp_policy:
+        """
+        Verify that revenue calculations match exactly between DP and SAA evaluations.
+
+        Args:
+            path: Evaluation path
+            dp_policy: DP policy mapping states to prices
+            dp_revenue: Total revenue from DP evaluation
+            saa_prices: SAA price vectors
+            saa_revenue: Total revenue from SAA evaluation
+            tolerance: Numerical tolerance for floating point comparisons
+
+        Returns:
+            bool: True if revenue calculations are consistent
+        """
+        # Recalculate revenues step by step
+        dp_revenue_check = 0.0
+        saa_revenue_check = 0.0
+        capacity = np.full(self.N, self.C, dtype=np.int32)
+
+        for t, bt, qt in path:
+            if bt is not None:
+                # Check DP revenue calculation
+                state = DPState(capacity=tuple(capacity), time=t)
+                if state in dp_policy:
+                    stay_nights = self.class_stays[bt]
+                    if all(capacity[i] >= 1 for i in stay_nights):
+                        dp_prices = [dp_policy[state][i] for i in stay_nights]
+                        dp_avg_price = sum(dp_prices) / len(stay_nights)
+                        if qt >= dp_avg_price:
+                            dp_revenue_check += sum(dp_prices)
+
+                # Check SAA revenue calculation
                 stay_nights = self.class_stays[bt]
                 if all(capacity[i] >= 1 for i in stay_nights):
-                    dp_prices = [dp_policy[state][i] for i in stay_nights]
-                    dp_avg_price = sum(dp_prices) / len(stay_nights)
-                    if qt >= dp_avg_price:
-                        dp_revenue_check += sum(dp_prices)
-                        
-            # Check SAA revenue calculation
-            stay_nights = self.class_stays[bt]
-            if all(capacity[i] >= 1 for i in stay_nights):
-                saa_prices_stay = [saa_prices[t][i] for i in stay_nights]
-                saa_avg_price = sum(saa_prices_stay) / len(stay_nights)
-                if qt >= saa_avg_price:
-                    saa_revenue_check += sum(saa_prices_stay)
+                    saa_prices_stay = [saa_prices[t][i] for i in stay_nights]
+                    saa_avg_price = sum(saa_prices_stay) / len(stay_nights)
+                    if qt >= saa_avg_price:
+                        saa_revenue_check += sum(saa_prices_stay)
+
+        # Verify calculations match reported revenues
+        dp_match = abs(dp_revenue - dp_revenue_check) < tolerance
+        saa_match = abs(saa_revenue - saa_revenue_check) < tolerance
+
+        if not (dp_match and saa_match):
+            logger.warning("Revenue calculation mismatch detected")
+            logger.warning(f"DP Revenue: reported={dp_revenue:.2f}, calculated={dp_revenue_check:.2f}")
+            logger.warning(f"SAA Revenue: reported={saa_revenue:.2f}, calculated={saa_revenue_check:.2f}")
+
+        return dp_match and saa_match
     
-    # Verify calculations match reported revenues
-    dp_match = abs(dp_revenue - dp_revenue_check) < tolerance
-    saa_match = abs(saa_revenue - saa_revenue_check) < tolerance
-    
-    if not (dp_match and saa_match):
-        logger.warning("Revenue calculation mismatch detected")
-        logger.warning(f"DP Revenue: reported={dp_revenue:.2f}, calculated={dp_revenue_check:.2f}")
-        logger.warning(f"SAA Revenue: reported={saa_revenue:.2f}, calculated={saa_revenue_check:.2f}")
-        
-    return dp_match and saa_match
     def generate_test_instance(self, 
                              capacity: int,
                              demand_scenario: str,
@@ -168,6 +169,84 @@ class Experiment1Runner:
             seed=seed
         )
     
+    def _enhanced_path_validation(self, paths: List, instance: Dict):
+        """
+        Enhanced validation of evaluation paths to ensure complete consistency.
+
+        Args:
+            paths: List of evaluation paths
+            instance: Test instance dictionary
+
+        Raises:
+            ValueError: If any validation check fails
+        """
+        if not paths:
+            raise ValueError("Empty evaluation paths")
+
+        for path in paths:
+            # Verify path length
+            if len(path) != instance['parameters'].T:
+                raise ValueError(f"Path length {len(path)} does not match horizon {instance['parameters'].T}")
+
+            # Verify each component
+            for t, bt, qt in path:
+                # Verify time period
+                if not (1 <= t <= instance['parameters'].T):
+                    raise ValueError(f"Invalid time period {t}")
+
+                if bt is not None:
+                    # Verify booking class
+                    if bt not in instance['booking_classes']:
+                        raise ValueError(f"Invalid booking class {bt}")
+
+                    # Verify reservation price
+                    epsilon = instance['reservation_price_params'][bt]
+                    if not (0 <= qt <= 1/epsilon):
+                        raise ValueError(f"Invalid reservation price {qt}")
+
+        logger.info("Enhanced path validation completed successfully")
+        
+    def _verify_evaluation_consistency(self,
+                                evaluation_paths: List,
+                                dp_policy: Dict,
+                                dp_revenue: float,
+                                saa_prices: Dict,
+                                saa_revenue: float) -> bool:
+        """
+        Comprehensive verification of evaluation consistency between DP and SAA.
+
+        Args:
+            evaluation_paths: List of paths used for evaluation
+            dp_policy: DP policy mapping states to prices
+            dp_revenue: Total revenue from DP evaluation
+            saa_prices: SAA price vectors
+            saa_revenue: Total revenue from SAA evaluation
+
+        Returns:
+            bool: True if all consistency checks pass
+        """
+        try:
+            # Verify revenue calculations
+            revenue_consistent = self._validate_revenue_calculations(
+                evaluation_paths[0],  # Check first path as sample
+                dp_policy,
+                dp_revenue,
+                saa_prices,
+                saa_revenue
+            )
+
+            if not revenue_consistent:
+                logger.error("Revenue calculation consistency check failed")
+                return False
+
+            # Additional consistency checks can be added here
+
+            return True
+
+        except Exception as e:
+            logger.error(f"Error in evaluation consistency check: {str(e)}")
+            return False
+        
     def run_single_instance(self,
                           instance: Dict,
                           replication: int,
@@ -194,8 +273,8 @@ class Experiment1Runner:
                 path = saa._generate_sample_path(rng=eval_rng)
                 evaluation_paths.append(path)
                 
-            # Validate evaluation paths
-            self._validate_evaluation_paths(evaluation_paths, instance)
+            # Enhanced validation
+            self._enhanced_path_validation(evaluation_paths, instance)
             
             # Solve using Dynamic Programming
             dp = DynamicProgramming(instance)
@@ -212,6 +291,16 @@ class Experiment1Runner:
             
             # Evaluate SAA policy on the same fixed sample paths
             saa_revenue = saa.evaluate(saa_prices, evaluation_paths)
+            
+            # Verify evaluation consistency
+            if not self._verify_evaluation_consistency(
+                evaluation_paths,
+                dp_policy,
+                dp_revenue,
+                saa_prices,
+                saa_revenue
+            ):
+                logger.warning("Evaluation consistency check failed")
             
             # Compute revenue gap
             revenue_gap = ((dp_revenue - saa_revenue) / dp_revenue) * 100
@@ -233,25 +322,6 @@ class Experiment1Runner:
         except Exception as e:
             logger.error(f"Error processing instance: {str(e)}")
             return None
-    
-    def _validate_evaluation_paths(self, paths: List, instance: Dict):
-        """Validate evaluation paths for consistency with instance parameters."""
-        if not paths:
-            raise ValueError("Empty evaluation paths")
-            
-        # Check path length matches booking horizon
-        expected_length = instance['parameters'].T
-        if any(len(path) != expected_length for path in paths):
-            raise ValueError("Inconsistent path lengths")
-            
-        # Verify booking classes are valid
-        valid_classes = set(instance['booking_classes'])
-        for path in paths:
-            for _, bt, _ in path:
-                if bt is not None and bt not in valid_classes:
-                    raise ValueError(f"Invalid booking class {bt}")
-                    
-        logger.info("Evaluation paths validated successfully")
         
     def run_experiment(self, num_workers: int = 4) -> pd.DataFrame:
         """Run the complete experiment with all parameter combinations."""
