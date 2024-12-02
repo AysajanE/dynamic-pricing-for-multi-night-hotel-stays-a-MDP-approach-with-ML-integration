@@ -16,7 +16,7 @@ import itertools
 import os
 
 from data_generator import TestConfiguration, create_test_instance
-from dynamic_pricing_algorithms import DynamicProgramming, StochasticApproximation
+from dynamic_pricing_algorithms import DynamicProgramming, StochasticApproximation, DPState
 
 # Configure logging
 logging.basicConfig(
@@ -58,8 +58,8 @@ class Experiment1Runner:
         logger.info(f"Results will be saved to: {self.output_dir}")
         
         # Define experiment parameters
-        self.T = 7  # Booking horizon
-        self.N = 7  # Service horizon
+        self.T = 5  # Booking horizon
+        self.N = 3  # Service horizon
         
         # Define parameter ranges for test instances
         # self.capacity_levels = [3, 5, 7]  # Small capacities for tractable DP
@@ -83,68 +83,11 @@ class Experiment1Runner:
         self.num_replications = 30  # Number of replications per configuration
         self.confidence_level = 0.95
         
-    def _validate_revenue_calculations(self,
-                                path: List[Tuple],
-                                dp_policy: Dict,
-                                dp_revenue: float,
-                                saa_prices: Dict,
-                                saa_revenue: float,
-                                tolerance: float = 1e-10) -> bool:
-        """
-        Verify that revenue calculations match exactly between DP and SAA evaluations.
-
-        Args:
-            path: Evaluation path
-            dp_policy: DP policy mapping states to prices
-            dp_revenue: Total revenue from DP evaluation
-            saa_prices: SAA price vectors
-            saa_revenue: Total revenue from SAA evaluation
-            tolerance: Numerical tolerance for floating point comparisons
-
-        Returns:
-            bool: True if revenue calculations are consistent
-        """
-        # Recalculate revenues step by step
-        dp_revenue_check = 0.0
-        saa_revenue_check = 0.0
-        capacity = np.full(self.N, self.C, dtype=np.int32)
-
-        for t, bt, qt in path:
-            if bt is not None:
-                # Check DP revenue calculation
-                state = DPState(capacity=tuple(capacity), time=t)
-                if state in dp_policy:
-                    stay_nights = self.class_stays[bt]
-                    if all(capacity[i] >= 1 for i in stay_nights):
-                        dp_prices = [dp_policy[state][i] for i in stay_nights]
-                        dp_avg_price = sum(dp_prices) / len(stay_nights)
-                        if qt >= dp_avg_price:
-                            dp_revenue_check += sum(dp_prices)
-
-                # Check SAA revenue calculation
-                stay_nights = self.class_stays[bt]
-                if all(capacity[i] >= 1 for i in stay_nights):
-                    saa_prices_stay = [saa_prices[t][i] for i in stay_nights]
-                    saa_avg_price = sum(saa_prices_stay) / len(stay_nights)
-                    if qt >= saa_avg_price:
-                        saa_revenue_check += sum(saa_prices_stay)
-
-        # Verify calculations match reported revenues
-        dp_match = abs(dp_revenue - dp_revenue_check) < tolerance
-        saa_match = abs(saa_revenue - saa_revenue_check) < tolerance
-
-        if not (dp_match and saa_match):
-            logger.warning("Revenue calculation mismatch detected")
-            logger.warning(f"DP Revenue: reported={dp_revenue:.2f}, calculated={dp_revenue_check:.2f}")
-            logger.warning(f"SAA Revenue: reported={saa_revenue:.2f}, calculated={saa_revenue_check:.2f}")
-
-        return dp_match and saa_match
-    
     def generate_test_instance(self, 
-                             capacity: int,
-                             demand_scenario: str,
-                             market_condition: str,
-                             seed: int) -> Dict:
+                         capacity: int,
+                         demand_scenario: str,
+                         market_condition: str,
+                         seed: int) -> Dict:
         """Generate a single test instance with specified parameters."""
         # Configure test parameters
         config = TestConfiguration()
@@ -168,6 +111,69 @@ class Experiment1Runner:
             test_configuration=test_params,
             seed=seed
         )
+    
+    def _validate_revenue_calculations(self,
+                                    path: List[Tuple],
+                                    dp_policy: Dict,
+                                    dp_revenue: float,
+                                    saa_prices: Dict,
+                                    saa_revenue: float,
+                                    instance: Dict,
+                                    tolerance: float = 1e-10) -> bool:
+        """
+        Verify that revenue calculations match exactly between DP and SAA evaluations.
+
+        Args:
+            path: Evaluation path
+            dp_policy: DP policy mapping states to prices
+            dp_revenue: Total revenue from DP evaluation
+            saa_prices: SAA price vectors
+            saa_revenue: Total revenue from SAA evaluation
+            instance: Test instance dictionary containing problem parameters
+            tolerance: Numerical tolerance for floating point comparisons
+
+        Returns:
+            bool: True if revenue calculations are consistent
+        """
+        # Get parameters from instance
+        N = instance['parameters'].N
+        C = instance['parameters'].C
+
+        # Recalculate revenues step by step
+        dp_revenue_check = 0.0
+        saa_revenue_check = 0.0
+        capacity = np.full(N, C, dtype=np.int32)
+
+        for t, bt, qt in path:
+            if bt is not None:
+                # Check DP revenue calculation
+                state = DPState(capacity=tuple(capacity), time=t)
+                if state in dp_policy:
+                    stay_nights = instance['booking_classes']
+                    if all(capacity[i] >= 1 for i in stay_nights):
+                        dp_prices = [dp_policy[state][i] for i in stay_nights]
+                        dp_avg_price = sum(dp_prices) / len(stay_nights)
+                        if qt >= dp_avg_price:
+                            dp_revenue_check += sum(dp_prices)
+
+                # Check SAA revenue calculation
+                stay_nights = instance['booking_classes']
+                if all(capacity[i] >= 1 for i in stay_nights):
+                    saa_prices_stay = [saa_prices[t][i] for i in stay_nights]
+                    saa_avg_price = sum(saa_prices_stay) / len(stay_nights)
+                    if qt >= saa_avg_price:
+                        saa_revenue_check += sum(saa_prices_stay)
+
+        # Verify calculations match reported revenues
+        dp_match = abs(dp_revenue - dp_revenue_check) < tolerance
+        saa_match = abs(saa_revenue - saa_revenue_check) < tolerance
+
+        if not (dp_match and saa_match):
+            logger.warning("Revenue calculation mismatch detected")
+            logger.warning(f"DP Revenue: reported={dp_revenue:.2f}, calculated={dp_revenue_check:.2f}")
+            logger.warning(f"SAA Revenue: reported={saa_revenue:.2f}, calculated={saa_revenue_check:.2f}")
+
+        return dp_match and saa_match
     
     def _enhanced_path_validation(self, paths: List, instance: Dict):
         """
@@ -207,11 +213,12 @@ class Experiment1Runner:
         logger.info("Enhanced path validation completed successfully")
         
     def _verify_evaluation_consistency(self,
-                                evaluation_paths: List,
-                                dp_policy: Dict,
-                                dp_revenue: float,
-                                saa_prices: Dict,
-                                saa_revenue: float) -> bool:
+                                    evaluation_paths: List,
+                                    dp_policy: Dict,
+                                    dp_revenue: float,
+                                    saa_prices: Dict,
+                                    saa_revenue: float,
+                                    instance: Dict) -> bool:
         """
         Comprehensive verification of evaluation consistency between DP and SAA.
 
@@ -221,6 +228,7 @@ class Experiment1Runner:
             dp_revenue: Total revenue from DP evaluation
             saa_prices: SAA price vectors
             saa_revenue: Total revenue from SAA evaluation
+            instance: Test instance dictionary
 
         Returns:
             bool: True if all consistency checks pass
@@ -232,14 +240,13 @@ class Experiment1Runner:
                 dp_policy,
                 dp_revenue,
                 saa_prices,
-                saa_revenue
+                saa_revenue,
+                instance
             )
 
             if not revenue_consistent:
                 logger.error("Revenue calculation consistency check failed")
                 return False
-
-            # Additional consistency checks can be added here
 
             return True
 
@@ -247,64 +254,56 @@ class Experiment1Runner:
             logger.error(f"Error in evaluation consistency check: {str(e)}")
             return False
         
-    def run_single_instance(self,
-                          instance: Dict,
-                          replication: int,
-                          eval_seed: int = None) -> Dict:
-        """Run both DP and SAA on a single test instance with shared sample paths.
-        
-        Args:
-            instance: Test instance dictionary
-            replication: Replication number
-            eval_seed: Seed for generating evaluation paths (ensures consistency)
-        """
+    def run_single_instance(self, instance: Dict, replication: int, eval_seed: int = None) -> Dict:
+        """Run both DP and SAA on a single test instance with shared sample paths."""
         try:
-            # Initialize SAA first to generate sample paths
+            # Initialize SAA
             saa = StochasticApproximation(instance, self.learning_params)
-            
-            # Set evaluation seed for consistent path generation
+
+            # Set evaluation seed
             eval_rng = np.random.default_rng(eval_seed if eval_seed is not None 
                                            else 1000 * replication)
-            
-            # Generate fixed sample paths for evaluation using controlled RNG
+
+            # Generate evaluation paths
             num_eval_paths = 1000
             evaluation_paths = []
             for _ in range(num_eval_paths):
                 path = saa._generate_sample_path(rng=eval_rng)
                 evaluation_paths.append(path)
-                
+
             # Enhanced validation
             self._enhanced_path_validation(evaluation_paths, instance)
-            
-            # Solve using Dynamic Programming
+
+            # Solve using DP
             dp = DynamicProgramming(instance)
             dp_start = datetime.now()
             dp_policy, _ = dp.solve()
             dp_time = (datetime.now() - dp_start).total_seconds()
-            
-            # Evaluate DP policy on the fixed sample paths
+
+            # Evaluate DP policy
             dp_revenue = dp.evaluate_policy(dp_policy, evaluation_paths)
-            
+
             # Solve using SAA
             saa_start = datetime.now()
             saa_prices, _, saa_time = saa.solve()
-            
-            # Evaluate SAA policy on the same fixed sample paths
+
+            # Evaluate SAA policy
             saa_revenue = saa.evaluate(saa_prices, evaluation_paths)
-            
+
             # Verify evaluation consistency
             if not self._verify_evaluation_consistency(
                 evaluation_paths,
                 dp_policy,
                 dp_revenue,
                 saa_prices,
-                saa_revenue
+                saa_revenue,
+                instance  # Pass instance to verification method
             ):
                 logger.warning("Evaluation consistency check failed")
-            
-            # Compute revenue gap
+
+            # Calculate revenue gap
             revenue_gap = ((dp_revenue - saa_revenue) / dp_revenue) * 100
-            
+
             return {
                 'capacity': instance['parameters'].C,
                 'demand_scenario': instance['scenario_info']['demand_scenario'],
@@ -318,7 +317,7 @@ class Experiment1Runner:
                 'num_eval_paths': num_eval_paths,
                 'eval_seed': eval_seed if eval_seed is not None else 1000 * replication
             }
-            
+
         except Exception as e:
             logger.error(f"Error processing instance: {str(e)}")
             return None
