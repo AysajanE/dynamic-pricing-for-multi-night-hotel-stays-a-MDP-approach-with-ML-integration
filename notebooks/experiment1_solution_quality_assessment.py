@@ -31,10 +31,6 @@ class Experiment1Runner:
     Compares SAA performance against optimal DP solution for small instances.
     """
     
-    # def __init__(self, output_dir: str = "results/experiment1"):
-    #     """Initialize experiment runner with configuration."""
-    #     self.output_dir = Path(output_dir)
-    #     self.output_dir.mkdir(parents=True, exist_ok=True)
     def __init__(self, base_results_dir: str = "../experiments/experiment1"):
         """
         Initialize experiment runner with configuration.
@@ -64,9 +60,9 @@ class Experiment1Runner:
         # self.demand_scenarios = ['low', 'base', 'high']
         # self.market_conditions = ['budget', 'standard', 'luxury']
         
-        self.capacity_levels = [3, 5]  # Small capacities for tractable DP
-        self.demand_scenarios = ['low', 'base']
-        self.market_conditions = ['budget', 'standard']
+        self.capacity_levels = [3]  # Small capacities for tractable DP
+        self.demand_scenarios = ['base']
+        self.market_conditions = ['budget']
         
         # SAA learning parameters
         self.learning_params = {
@@ -112,19 +108,48 @@ class Experiment1Runner:
     
     def run_single_instance(self,
                           instance: Dict,
-                          replication: int) -> Dict:
-        """Run both DP and SAA on a single test instance."""
+                          replication: int,
+                          eval_seed: int = None) -> Dict:
+        """Run both DP and SAA on a single test instance with shared sample paths.
+        
+        Args:
+            instance: Test instance dictionary
+            replication: Replication number
+            eval_seed: Seed for generating evaluation paths (ensures consistency)
+        """
         try:
+            # Initialize SAA first to generate sample paths
+            saa = StochasticApproximation(instance, self.learning_params)
+            
+            # Set evaluation seed for consistent path generation
+            eval_rng = np.random.default_rng(eval_seed if eval_seed is not None 
+                                           else 1000 * replication)
+            
+            # Generate fixed sample paths for evaluation using controlled RNG
+            num_eval_paths = 1000
+            evaluation_paths = []
+            for _ in range(num_eval_paths):
+                path = saa._generate_sample_path(rng=eval_rng)
+                evaluation_paths.append(path)
+                
+            # Validate evaluation paths
+            self._validate_evaluation_paths(evaluation_paths, instance)
+            
             # Solve using Dynamic Programming
             dp = DynamicProgramming(instance)
             dp_start = datetime.now()
-            _, dp_revenue = dp.solve()
+            dp_policy, _ = dp.solve()
             dp_time = (datetime.now() - dp_start).total_seconds()
             
+            # Evaluate DP policy on the fixed sample paths
+            dp_revenue = dp.evaluate_policy(dp_policy, evaluation_paths)
+            
             # Solve using SAA
-            saa = StochasticApproximation(instance, self.learning_params)
             saa_start = datetime.now()
-            prices, saa_revenue, saa_time = saa.solve()
+            saa_prices, _, saa_time = saa.solve()
+            
+            # Evaluate SAA policy on the same fixed sample paths
+            saa_revenue = saa.evaluate(saa_prices, evaluation_paths)
             
             # Compute revenue gap
             revenue_gap = ((dp_revenue - saa_revenue) / dp_revenue) * 100
@@ -138,13 +163,34 @@ class Experiment1Runner:
                 'dp_time': dp_time,
                 'saa_revenue': saa_revenue,
                 'saa_time': saa_time,
-                'revenue_gap': revenue_gap
+                'revenue_gap': revenue_gap,
+                'num_eval_paths': num_eval_paths,
+                'eval_seed': eval_seed if eval_seed is not None else 1000 * replication
             }
             
         except Exception as e:
             logger.error(f"Error processing instance: {str(e)}")
             return None
     
+    def _validate_evaluation_paths(self, paths: List, instance: Dict):
+        """Validate evaluation paths for consistency with instance parameters."""
+        if not paths:
+            raise ValueError("Empty evaluation paths")
+            
+        # Check path length matches booking horizon
+        expected_length = instance['parameters'].T
+        if any(len(path) != expected_length for path in paths):
+            raise ValueError("Inconsistent path lengths")
+            
+        # Verify booking classes are valid
+        valid_classes = set(instance['booking_classes'])
+        for path in paths:
+            for _, bt, _ in path:
+                if bt is not None and bt not in valid_classes:
+                    raise ValueError(f"Invalid booking class {bt}")
+                    
+        logger.info("Evaluation paths validated successfully")
+        
     def run_experiment(self, num_workers: int = 4) -> pd.DataFrame:
         """Run the complete experiment with all parameter combinations."""
         logger.info("Starting Experiment 1: Solution Quality Assessment")

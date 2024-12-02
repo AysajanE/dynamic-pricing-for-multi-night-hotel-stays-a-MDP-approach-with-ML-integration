@@ -1,0 +1,24 @@
+{
+    "overall": {
+        "mean_revenue_gap": 2.842932666741373,
+        "std_revenue_gap": 1.5241873952712304,
+        "mean_dp_time": 0.36960303333333333,
+        "mean_saa_time": 25.289143188794455
+    },
+    "statistical_tests": {
+        "t_statistic": 10.549280815613425,
+        "p_value": 1.9351110148982422e-11
+    },
+    "confidence_intervals": {
+        "revenue_gap_lower": 2.2737917397777516,
+        "revenue_gap_upper": 3.4120735937049944
+    },
+    "by_capacity": {
+        "3": {
+            "revenue_gap_mean": 2.842932666741372,
+            "revenue_gap_std": 1.5241873952712306,
+            "dp_time_mean": 0.36960303333333333,
+            "saa_time_mean": 25.289143188794455
+        }
+    }
+}

@@ -571,77 +571,6 @@ class DataGenerator:
 #         logger.info(f"Middle Period Average: ${np.mean(list(period_averages.values())[len(period_averages)//3:2*len(period_averages)//3]):.2f}")
 #         logger.info(f"Late Period Average: ${np.mean(list(period_averages.values())[2*len(period_averages)//3:]):.2f}")
     
-#     def _log_initial_price_stats(
-#         self, 
-#         prices: Dict[int, Dict[int, float]], 
-#         market_condition: str,
-#         initialization_strategy: str = 'market_based',
-#         strategy_params: Dict = None
-#         ):
-#         """
-#         Log detailed statistics for initial prices.
-
-#         Args:
-#             prices: Dictionary mapping booking periods to daily prices
-#             market_condition: Type of market segment
-#             initialization_strategy: Method used for price initialization
-#             strategy_params: Additional parameters used in initialization
-#         """
-#         logger.info(f"\nInitial Price Generation Analysis for {market_condition.upper()} Market")
-#         logger.info(f"Initialization Strategy: {initialization_strategy.upper()}")
-
-#         if strategy_params:
-#             logger.info("Strategy-Specific Parameters:")
-#             for param, value in strategy_params.items():
-#                 logger.info(f"- {param}: {value}")
-
-#         # Calculate overall statistics for all prices
-#         all_prices = list(np.concatenate([list(period_prices.values()) 
-#                                         for period_prices in prices.values()]))
-
-#         logger.info("\nOverall Price Statistics:")
-#         logger.info(f"Average Price: ${np.mean(all_prices):.2f}")
-#         logger.info(f"Median Price: ${np.median(all_prices):.2f}")
-#         logger.info(f"Price Range: ${np.min(all_prices):.2f} - ${np.max(all_prices):.2f}")
-#         logger.info(f"Standard Deviation: ${np.std(all_prices):.2f}")
-
-#         # Analyze day-of-week patterns with proper handling of missing data
-#         dow_prices = {i: [] for i in range(7)}
-#         for period in prices.values():
-#             for day, price in period.items():
-#                 dow = (day - 1) % 7
-#                 dow_prices[dow].append(price)
-
-#         logger.info("\nDay-of-Week Price Analysis:")
-#         days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
-#         for dow, day_name in enumerate(days):
-#             prices = dow_prices[dow]
-#             if prices:  # Only compute statistics if we have data for this day
-#                 avg_price = np.mean(prices)
-#                 std_price = np.std(prices)
-#                 logger.info(f"{day_name}: ${avg_price:.2f} (±${std_price:.2f})")
-#             else:
-#                 logger.info(f"{day_name}: No data available")
-
-#         # Analyze price trends across booking horizon
-#         period_averages = {t: np.mean(list(prices[t].values())) 
-#                           for t in prices if list(prices[t].values())}
-
-#         if period_averages:  # Only compute if we have valid averages
-#             periods = list(period_averages.values())
-#             num_periods = len(periods)
-#             early = periods[:num_periods//3] if num_periods >= 3 else periods
-#             middle = periods[num_periods//3:2*num_periods//3] if num_periods >= 3 else []
-#             late = periods[2*num_periods//3:] if num_periods >= 3 else []
-
-#             logger.info("\nBooking Horizon Price Trends:")
-#             if early:
-#                 logger.info(f"Early Period Average: ${np.mean(early):.2f}")
-#             if middle:
-#                 logger.info(f"Middle Period Average: ${np.mean(middle):.2f}")
-#             if late:
-#                 logger.info(f"Late Period Average: ${np.mean(late):.2f}")
-            
     def _log_initial_price_stats(
             self, 
             prices: Dict[int, Dict[int, float]], 
@@ -721,7 +650,7 @@ class DataGenerator:
                     logger.info(f"Late Period Average: ${np.mean(late):.2f}")
         else:
             logger.warning("No valid prices found for analysis")
-        
+            
     def generate_study_instance(
             self, 
             demand_scenario: str = 'base', 

@@ -49,26 +49,15 @@ class DynamicProgramming:
         logger.info(f"Initialized DP solver with {len(self.booking_classes)} booking classes")
         
     def _precompute_class_info(self):
-        """Pre-compute booking class information with explicit integer handling."""
-        self.class_stays = {}
-        self.stay_lengths = {}
-
-        for arr, dep in self.booking_classes:
-            # Ensure integer indices for array access
-            arr_idx = int(arr - 1)  # Convert to 0-based indexing
-            dep_idx = int(dep - 1)
-
-            # Store stay nights as a set of integer indices
-            stay_nights = set(range(arr_idx, dep_idx + 1))
-            self.class_stays[(arr, dep)] = stay_nights
-
-            # Store length of stay
-            self.stay_lengths[(arr, dep)] = dep - arr + 1
-
-        logger.debug(f"Preprocessed {len(self.booking_classes)} booking classes")
-        for (arr, dep), nights in self.class_stays.items():
-            logger.debug(f"Class ({arr}, {dep}): nights {sorted(nights)}")
-            
+        """Pre-compute booking class information for efficient lookup."""
+        self.class_stays = {
+            (arr, dep): set(range(arr - 1, dep)) 
+            for arr, dep in self.booking_classes
+        }
+        self.stay_lengths = {
+            (arr, dep): dep - arr + 1 
+            for arr, dep in self.booking_classes
+        }
     def _compute_purchase_probability(self, price: float, epsilon: float) -> float:
         """
         Compute purchase probability using linear demand function.
@@ -76,99 +65,94 @@ class DynamicProgramming:
         """
         return max(0.0, min(1.0, 1.0 - epsilon * price))    
     
+    def _compute_G_function(self, state: DPState, prices: Dict[int, float]) -> float:
+        """
+        Compute G(x_t, p_t) according to equation (7) in the formulation.
+
+        G(x_t, p_t) = sum_{b in B} u_t^b(x_t, p_t) * (L^b * p_t^b + V(x_t - e^b, t+1) - V(x_t, t+1))
+        """
+        G_value = 0.0
+        current_probs = self.arrival_probs[state.time]
+
+        for booking_class, arrival_prob in current_probs.items():
+            if arrival_prob <= 0:
+                continue
+
+            arrival, departure = booking_class
+            stay_nights = self.class_stays[booking_class]
+            length_of_stay = self.stay_lengths[booking_class]
+
+            # Check capacity availability
+            has_capacity = all(state.capacity[i] > 0 for i in stay_nights)
+
+            if has_capacity:
+                # Calculate average price for the stay
+                stay_prices = [prices[i] for i in stay_nights]
+                avg_price = sum(stay_prices) / length_of_stay
+
+                # Compute purchase probability
+                eps = self.price_sensitivity[booking_class]
+                accept_prob = max(0.0, min(1.0, 1.0 - eps * avg_price))
+
+                if accept_prob > 0:
+                    # Create next state with reduced capacity
+                    next_capacity = list(state.capacity)
+                    for i in stay_nights:
+                        next_capacity[i] -= 1
+                    next_state = DPState(capacity=tuple(next_capacity), time=state.time + 1)
+
+                    # Compute value difference
+                    value_current = self.value_function.get(
+                        DPState(capacity=state.capacity, time=state.time + 1), 0.0
+                    )
+                    value_next = self.value_function.get(next_state, 0.0)
+
+                    # Compute contribution to G
+                    immediate_revenue = length_of_stay * avg_price
+                    future_value_diff = value_next - value_current
+
+                    G_value += arrival_prob * accept_prob * (immediate_revenue + future_value_diff)
+
+        return G_value
+
     def _optimize_state_prices(self, state: DPState) -> Tuple[float, Dict[int, float]]:
         """
-        Optimize prices for current state leveraging concavity.
-        
-        Uses gradient-based optimization for each day's price within bounds,
-        taking advantage of the problem's concavity property.
+        Optimize prices for current state using concavity of G function.
+
+        V(x_t, t) = V(x_t, t+1) + max_{p_t} G(x_t, p_t)
         """
-        optimal_prices = {}
-        total_value = 0.0
-        
         # Initialize with current prices at midpoint
         current_prices = {i: (self.price_min + self.price_max) / 2 
-                        for i in range(self.N)}
-        
+                         for i in range(self.N)}
+
+        # Value function at t+1 for current state
+        future_value = self.value_function.get(
+            DPState(capacity=state.capacity, time=state.time + 1), 0.0
+        )
+
         # Optimize each day's price separately using concavity
         for day in range(self.N):
-            def negative_revenue(price):
+            def negative_G(price):
                 """Objective function for single-day price optimization."""
                 current_prices[day] = price
-                return -self._compute_expected_value(state, current_prices)
-            
+                return -self._compute_G_function(state, current_prices)
+
             # Use scipy's minimize_scalar with bounds
             result = minimize_scalar(
-                negative_revenue,
+                negative_G,
                 bounds=(self.price_min, self.price_max),
                 method='bounded'
             )
-            
-            optimal_prices[day] = result.x
-            total_value = -result.fun
-        
-        return total_value, optimal_prices
-    
-    def _compute_expected_value(self, state: DPState, prices: Dict[int, float]) -> float:
-        """
-        Compute expected value for state-prices pair with efficient implementation.
-        """
-        value = 0.0
-        current_probs = self.arrival_probs[state.time]
-        
-        # Handle no arrival case
-        no_arrival_prob = 1.0 - sum(current_probs.values())
-        if no_arrival_prob > 0:
-            next_state = DPState(capacity=state.capacity, time=state.time + 1)
-            value += no_arrival_prob * self.value_function.get(next_state, 0.0)
-        
-        # Process each possible booking request efficiently
-        for (arrival, departure), arrival_prob in current_probs.items():
-            if arrival_prob <= 0:
-                continue
-                
-            # stay_nights = self.class_stays[(arrival, departure)]
-            # has_capacity = all(state.capacity[day] > 0 for day in stay_nights)
-            # Get integer-indexed stay nights
-            stay_nights = self.class_stays[(arrival, departure)]
 
-            # Check capacity using integer indices
-            has_capacity = all(int(state.capacity[day]) > 0 for day in stay_nights)
-            
-            if has_capacity:
-                # Calculate average price and acceptance probability
-                stay_prices = [float(prices[day]) for day in stay_nights]
-                avg_price = sum(stay_prices) / self.stay_lengths[(arrival, departure)]
-                
-                eps = float(self.price_sensitivity[(arrival, departure)])
-                accept_prob = max(0.0, min(1.0, 1.0 - eps * avg_price))
-                
-                if accept_prob > 0:
-                    # Handle acceptance case with explicit integer handling
-                    next_capacity = list(map(int, state.capacity))
-                    for day in stay_nights:
-                        max(0, next_capacity[day] - 1)
-                    
-                    next_state = DPState(
-                        capacity=tuple(next_capacity), 
-                        time=state.time + 1
-                    )
-                    immediate_revenue = sum(stay_prices)
-                    future_value = self.value_function.get(next_state, 0.0)
-                    
-                    value += arrival_prob * accept_prob * (immediate_revenue + future_value)
-                
-                # Handle rejection case
-                if accept_prob < 1:
-                    reject_prob = 1 - accept_prob
-                    next_state = DPState(capacity=state.capacity, time=state.time + 1)
-                    value += arrival_prob * reject_prob * self.value_function.get(next_state, 0.0)
-            else:
-                # Handle no capacity case
-                next_state = DPState(capacity=state.capacity, time=state.time + 1)
-                value += arrival_prob * self.value_function.get(next_state, 0.0)
-        
-        return value
+            current_prices[day] = result.x
+
+        # Compute optimal G value with final prices
+        optimal_G = self._compute_G_function(state, current_prices)
+
+        # Total value is future value plus optimal G
+        total_value = future_value + optimal_G
+
+        return total_value, current_prices
     
     def solve(self) -> Tuple[Dict[Tuple[int, ...], Dict[int, float]], float]:
         """
@@ -217,6 +201,38 @@ class DynamicProgramming:
         
         return self.optimal_policy, optimal_value
     
+    def evaluate_policy(self, policy: Dict, evaluation_paths: List) -> float:
+        """Evaluate DP policy on specific sample paths."""
+        total_revenue = 0.0
+        
+        for path in evaluation_paths:
+            path_revenue = 0.0
+            capacity = np.full(self.N, self.C, dtype=np.int32)
+            
+            for t, bt, qt in path:
+                if bt is not None:
+                    state = DPState(capacity=tuple(capacity), time=t)
+                    prices = policy.get(state, {})
+                    
+                    if not prices:  # Handle case where state not in policy
+                        continue
+                        
+                    stay_nights = self.class_stays[bt]
+                    has_capacity = all(capacity[i] >= 1 for i in stay_nights)
+                    
+                    if has_capacity:
+                        stay_prices = [prices[i] for i in stay_nights]
+                        avg_price = sum(stay_prices) / len(stay_nights)
+                        
+                        if qt >= avg_price:  # Customer accepts price
+                            path_revenue += sum(stay_prices)
+                            for i in stay_nights:
+                                capacity[i] -= 1
+                                
+            total_revenue += path_revenue
+            
+        return total_revenue / len(evaluation_paths)
+    
     def _initialize_boundary_conditions(self):
         """Initialize boundary conditions efficiently."""
         logger.info("Initializing boundary conditions")
@@ -232,194 +248,17 @@ class DynamicProgramming:
                     state = DPState(capacity=capacity, time=t)
                     self.value_function[state] = 0.0
                     
-#     def _generate_capacity_vectors(self) -> List[Tuple[int, ...]]:
-#         """
-#         Generate capacity vectors efficiently using numpy.
-#         """
-#         capacities = np.array(
-#             np.meshgrid(
-#                 *[range(self.C + 1) for _ in range(self.N)]
-#             )
-#         ).T.reshape(-1, self.N)
-        
-#         return [tuple(cap) for cap in capacities]
     def _generate_capacity_vectors(self) -> List[Tuple[int, ...]]:
         """
-        Generate capacity vectors with state space reduction techniques.
+        Generate capacity vectors efficiently using numpy.
         """
-        logger.info(f"Generating capacity vectors for N={self.N}, C={self.C}")
-
-        # Calculate theoretical state space size
-        theoretical_size = (self.C + 1) ** self.N
-        logger.info(f"Theoretical state space size: {theoretical_size:,}")
-
-        if theoretical_size > 1_000_000:  # Threshold for large state spaces
-            logger.warning("Large state space detected - applying reduction techniques")
-            return self._generate_reduced_capacity_vectors()
-
-        # Original implementation for smaller state spaces
-        capacities = []
-        for cap in itertools.product(range(self.C + 1), repeat=self.N):
-            cap_tuple = tuple(int(x) for x in cap)
-            capacities.append(cap_tuple)
-        return capacities
-
-# class DynamicProgramming:
-#     """Dynamic Programming solution for hotel revenue optimization."""
-    
-#     def __init__(self, instance: Dict):
-#         """Initialize using test instance from data_generator."""
-#         self.params = instance['parameters']
-#         self.T = self.params.T
-#         self.N = self.params.N
-#         self.C = self.params.C
-#         self.price_min = self.params.price_min
-#         self.price_max = self.params.price_max
+        capacities = np.array(
+            np.meshgrid(
+                *[range(self.C + 1) for _ in range(self.N)]
+            )
+        ).T.reshape(-1, self.N)
         
-#         self.booking_classes = instance['booking_classes']
-#         self.arrival_probs = instance['arrival_probabilities']
-#         self.price_sensitivity = instance['reservation_price_params']
-        
-#         # Define number of price levels (can be adjusted based on problem size)
-#         self.num_price_levels = 3  # Using 3 price levels as an example
-        
-#         # Pre-compute price levels for each day
-#         self.price_levels = np.linspace(self.price_min, self.price_max, self.num_price_levels)
-        
-#         # Generate all possible price combinations for N days
-#         self.price_combinations = list(itertools.product(self.price_levels, repeat=self.N))
-#         logger.info(f"Generated {len(self.price_combinations)} price combinations")
-
-        
-#         # Pre-compute stay patterns
-#         self.class_stays = {
-#             (arr, dep): set(range(arr - 1, dep)) 
-#             for arr, dep in self.booking_classes
-#         }
-#         self.stay_lengths = {
-#             (arr, dep): dep - arr + 1 
-#             for arr, dep in self.booking_classes
-#         }
-        
-#         # Initialize value function and policy
-#         self.value_function: Dict[DPState, float] = {}
-#         self.optimal_policy: Dict[DPState, Dict[int, float]] = {}
-        
-#     def solve(self) -> Tuple[Dict[Tuple[int, ...], Dict[int, float]], float]:
-#         """Solve the DP problem and return value functions and optimal policy."""
-#         logger.info("Starting DP solution")
-        
-#         # Initialize boundary conditions
-#         self._initialize_boundary_conditions()
-        
-#         # Backward induction
-#         for t in range(self.T, 0, -1):
-#             logger.info(f"Processing time period {t}")
-#             for capacity in self._generate_capacity_vectors():
-#                 state = DPState(capacity=capacity, time=t)
-#                 optimal_value, optimal_prices = self._compute_optimal_decision(state)
-#                 self.value_function[state] = optimal_value
-                
-#                 # Store policy as dictionary mapping day to price
-#                 self.optimal_policy[state] = {
-#                     i+1: price for i, price in enumerate(optimal_prices)
-#                 }
-        
-#         # Extract and format results for capacity = 5
-#         results = {}
-#         for state, prices in self.optimal_policy.items():
-#             if state.capacity[0] == 5:  # Only for first day capacity = 5
-#                 results[state.capacity] = prices
-        
-#         # Get optimal value for initial state
-#         initial_state = DPState(
-#             capacity=tuple(self.C for _ in range(self.N)),
-#             time=1
-#         )
-#         optimal_value = self.value_function[initial_state]
-        
-#         return results, optimal_value
-    
-#     def _initialize_boundary_conditions(self):
-#         """Initialize boundary conditions."""
-#         for capacity in self._generate_capacity_vectors():
-#             # Terminal period conditions
-#             terminal_state = DPState(capacity=capacity, time=self.T + 1)
-#             self.value_function[terminal_state] = 0.0
-            
-#             # Zero capacity conditions for all periods
-#             if sum(capacity) == 0:
-#                 for t in range(1, self.T + 2):
-#                     state = DPState(capacity=capacity, time=t)
-#                     self.value_function[state] = 0.0
-    
-#     def _compute_optimal_decision(self, state: DPState) -> Tuple[float, Tuple[float, ...]]:
-#         """Compute optimal value and prices for a state."""
-#         max_value = float('-inf')
-#         optimal_prices = self.price_levels[0:self.N]  # Default to minimum prices
-        
-#         for prices in self.price_combinations:
-#             value = self._compute_expected_value(state, prices)
-#             if value > max_value:
-#                 max_value = value
-#                 optimal_prices = prices
-        
-#         return max_value, optimal_prices
-    
-#     def _compute_expected_value(self, state: DPState, prices: Tuple[float, ...]) -> float:
-#         """Compute expected value for state-prices pair."""
-#         value = 0.0
-#         current_probs = self.arrival_probs[state.time]
-        
-#         # No arrival case
-#         no_arrival_prob = 1.0 - sum(current_probs.values())
-#         if no_arrival_prob > 0:
-#             next_state = DPState(capacity=state.capacity, time=state.time + 1)
-#             value += no_arrival_prob * self.value_function[next_state]
-        
-#         # For each possible booking request
-#         for (arrival, departure), arrival_prob in current_probs.items():
-#             if arrival_prob <= 0:
-#                 continue
-                
-#             stay_nights = self.class_stays[(arrival, departure)]
-#             has_capacity = all(state.capacity[day] > 0 for day in stay_nights)
-            
-#             if has_capacity:
-#                 # Calculate average price and acceptance probability
-#                 stay_prices = [prices[day] for day in stay_nights]
-#                 avg_price = sum(stay_prices) / self.stay_lengths[(arrival, departure)]
-                
-#                 eps = self.price_sensitivity[(arrival, departure)]
-#                 accept_prob = max(0, 1 - eps * avg_price)
-                
-#                 if accept_prob > 0:
-#                     # Acceptance case
-#                     next_capacity = list(state.capacity)
-#                     for day in stay_nights:
-#                         next_capacity[day] -= 1
-                    
-#                     next_state = DPState(capacity=tuple(next_capacity), time=state.time + 1)
-#                     immediate_revenue = sum(stay_prices)
-#                     future_value = self.value_function[next_state]
-                    
-#                     value += arrival_prob * accept_prob * (immediate_revenue + future_value)
-                
-#                 # Rejection case
-#                 if accept_prob < 1:
-#                     reject_prob = 1 - accept_prob
-#                     next_state = DPState(capacity=state.capacity, time=state.time + 1)
-#                     value += arrival_prob * reject_prob * self.value_function[next_state]
-#             else:
-#                 # No capacity case
-#                 next_state = DPState(capacity=state.capacity, time=state.time + 1)
-#                 value += arrival_prob * self.value_function[next_state]
-        
-#         return value
-    
-#     def _generate_capacity_vectors(self) -> List[Tuple[int, ...]]:
-#         """Generate all possible capacity vectors."""
-#         return [tuple(cap) for cap in itertools.product(range(self.C + 1), repeat=self.N)]
+        return [tuple(cap) for cap in capacities]
 
 class StochasticApproximation:
     """
@@ -447,6 +286,10 @@ class StochasticApproximation:
         self.booking_classes = instance['booking_classes']
         self.arrival_probs = instance['arrival_probabilities']
         self.epsilon = instance['reservation_price_params']
+        
+        # Initialize random number generator for training
+        train_seed = instance.get('train_seed', None)  # Allow for reproducible training
+        self.rng = np.random.default_rng(train_seed)
         
         # Set learning parameters
         default_learning_params = {
@@ -604,44 +447,52 @@ class StochasticApproximation:
         
         return dR_dp, dR_dx
     
-    def _generate_sample_path(self) -> List[Tuple]:
+    def _generate_sample_path(self, rng: np.random.Generator = None) -> List[Tuple]:
         """
         Generate a sample path of customer arrivals and reservation prices.
-        
+
         The sample path generation follows the two-step process from the theoretical framework:
         1. For each time period, determine if a customer arrives based on total arrival probability
         2. If an arrival occurs, select the booking class and randomly sample reservation price
-        
+
+        Args:
+            rng: Optional numpy random number generator. If not provided, uses the instance's
+                 default generator for training. This parameter enables consistent evaluation
+                 paths when comparing algorithms.
+
         Returns:
             List of (time, booking_class, reservation_price) tuples, where booking_class
             and reservation_price are None if no arrival occurs in that time period
         """
+        # Use provided RNG or fallback to instance RNG for training
+        random_generator = rng if rng is not None else self.rng
+
         path = []
         for t in range(1, self.params.T + 1):
             # Get arrival probabilities for current time period
             probs = self.arrival_probs[t]
-            arrival_prob = np.random.random()
+            arrival_prob = random_generator.random()
             total_prob = sum(probs.values())
-            
+
             if arrival_prob < total_prob:
                 # Customer arrives - select booking class
                 classes = list(probs.keys())
                 probabilities = [probs[c] for c in classes]
-                
+
                 # Normalize probabilities for class selection
                 normalized_probabilities = [p/total_prob for p in probabilities]
-                bt = classes[np.random.choice(len(classes), p=np.array(normalized_probabilities))]
-                
+                bt = classes[random_generator.choice(len(classes), p=np.array(normalized_probabilities))]
+
                 # Generate reservation price based on class-specific epsilon
                 eps = self.epsilon[bt]
-                u = np.random.random()
+                u = random_generator.random()
                 qt = u / eps    # Use inverse transform method for CDF: epsilon*p
-                
+
                 path.append((t, bt, qt))
             else:
                 # No arrival in this time period
                 path.append((t, None, None))
-        
+
         return path
     
     def _forward_pass(self, sample_path: List[Tuple]) -> Tuple[Dict, Dict, Dict]:
@@ -780,92 +631,7 @@ class StochasticApproximation:
             self.prices[t] = np.clip(self.prices[t], 
                                    self.params.price_min, 
                                    self.params.price_max)
-    
-#     def solve(self) -> Tuple[Dict[int, np.ndarray], float, float]:
-#         """
-#         Execute the SAA algorithm with proper gradient-based optimization and convergence checking.
-        
-#         Implements Phase I.c: Price Update and Convergence Check from the theoretical framework.
-        
-#         Returns:
-#             Tuple of (final_prices, final_revenue, solve_time)
-#         """
-#         start_time = time.time()
-        
-#         # Initialize convergence checking
-#         prev_gradients = None
-#         num_stable_iterations = 0
-#         convergence_threshold = self.learning_params.get('convergence_threshold', 1e-6)
-#         min_stable_iterations = self.learning_params.get('min_stable_iterations', 5)
-        
-#         for epoch in range(self.learning_params['max_epochs']):
-#             # Initialize gradient accumulators for the epoch
-#             epoch_gradients = {t: np.zeros(self.params.N) 
-#                              for t in range(1, self.params.T + 1)}
             
-#             # Compute current learning rate using decay schedule
-#             learning_rate = max(
-#                 self.learning_params['eta_min'],
-#                 self.learning_params['eta_0'] / (1 + self.learning_params['gamma'] * epoch)
-#             )
-            
-#             # Process mini-batch
-#             for _ in range(self.learning_params['batch_size']):
-#                 # Generate sample path
-#                 sample_path = self._generate_sample_path()
-                
-#                 # Forward pass through sample path
-#                 revenues, decision_values, capacities = self._forward_pass(sample_path)
-                
-#                 # Backward pass to compute gradients
-#                 gradients = self._backward_pass(revenues, decision_values, capacities, sample_path)
-                
-#                 # Accumulate gradients
-#                 for t in range(1, self.params.T + 1):
-#                     epoch_gradients[t] += gradients[t]
-            
-#             # Average gradients over mini-batch
-#             for t in range(1, self.params.T + 1):
-#                 epoch_gradients[t] /= self.learning_params['batch_size']
-            
-#             # Check convergence based on gradient stability
-#             if prev_gradients is not None:
-#                 max_gradient_change = max(
-#                     np.max(np.abs(epoch_gradients[t] - prev_gradients[t]))
-#                     for t in range(1, self.params.T + 1)
-#                 )
-                
-#                 if max_gradient_change < convergence_threshold:
-#                     num_stable_iterations += 1
-#                     if num_stable_iterations >= min_stable_iterations:
-#                         logger.info(f"Converged after {epoch + 1} epochs")
-#                         break
-#                 else:
-#                     num_stable_iterations = 0
-            
-#             # Store current gradients for next iteration
-#             prev_gradients = {t: np.copy(grad) for t, grad in epoch_gradients.items()}
-            
-#             # Update prices using averaged gradients
-#             for t in range(1, self.params.T + 1):
-#                 self.prices[t] += learning_rate * epoch_gradients[t]
-#                 # Project prices onto feasible set [price_min, price_max]
-#                 self.prices[t] = np.clip(self.prices[t], 
-#                                        self.params.price_min,
-#                                        self.params.price_max)
-            
-#             if epoch % 100 == 0:
-#                 logger.info(f"Epoch {epoch}: Max Gradient Norm = "
-#                           f"{max(np.linalg.norm(grad) for grad in epoch_gradients.values()):.6f}, "
-#                           f"Learning Rate = {learning_rate:.6f}")
-        
-#         solve_time = time.time() - start_time
-        
-#         # Compute final revenue for reporting
-#         final_revenue = self.evaluate(self.prices)
-        
-#         return self.prices, final_revenue, solve_time
-
     def solve(self) -> Tuple[Dict[int, np.ndarray], float, float]:
         """
         Execute the SAA algorithm with proper convergence checking.
@@ -960,51 +726,45 @@ class StochasticApproximation:
         
         return self.prices, final_revenue, solve_time
     
-    def evaluate(self, prices: Dict[int, np.ndarray], num_samples: int = 1000) -> float:
+    def evaluate(self, prices: Dict[int, np.ndarray], evaluation_paths: List = None) -> float:
         """
-        Evaluate a pricing policy using Monte Carlo simulation with the original discrete
-        decision function (not the smoothed version used in training).
+        Evaluate pricing policy using provided sample paths or generate new ones.
         
         Args:
             prices: Dictionary mapping time periods to price vectors
-            num_samples: Number of sample paths to evaluate
+            evaluation_paths: Optional list of pre-generated sample paths
             
         Returns:
             Average revenue across sample paths
         """
+        if evaluation_paths is None:
+            evaluation_paths = [self._generate_sample_path() 
+                              for _ in range(1000)]  # Default to 1000 paths
+            
         total_revenue = 0.0
         
-        for _ in range(num_samples):
-            # Generate sample path
-            sample_path = self._generate_sample_path()
+        for path in evaluation_paths:
             path_revenue = 0.0
-            capacity = np.full(self.params.N, self.params.C, dtype=np.int32)  # Integer capacity
+            capacity = np.full(self.params.N, self.params.C, dtype=np.int32)
             
-            # Process each time period
-            for t, bt, qt in sample_path:
+            for t, bt, qt in path:
                 if bt is not None:
-                    # Extract booking class information
                     stay_nights = self.class_stays[bt]
                     Lb = self.stay_lengths[bt]
                     
-                    # Check capacity (must have at least 1 room for all nights)
                     has_capacity = all(capacity[i] >= 1 for i in stay_nights)
                     
                     if has_capacity:
-                        # Compute average price for the stay
                         stay_prices = [prices[t][i] for i in stay_nights]
                         price_bt = sum(stay_prices) / Lb
                         
-                        # Check if customer accepts price
                         if qt >= price_bt:
-                            # Accept booking
                             revenue = Lb * price_bt
                             path_revenue += revenue
                             
-                            # Update capacity (integer updates)
                             for i in stay_nights:
                                 capacity[i] -= 1
             
             total_revenue += path_revenue
         
-        return total_revenue / num_samples
+        return total_revenue / len(evaluation_paths)
