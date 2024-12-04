@@ -58,21 +58,21 @@ class Experiment1Runner:
         logger.info(f"Results will be saved to: {self.output_dir}")
         
         # Define experiment parameters
-        self.T = 5  # Booking horizon
-        self.N = 3  # Service horizon
+        self.T = 10  # Booking horizon
+        self.N = 5  # Service horizon
         
         # Define parameter ranges for test instances
-        # self.capacity_levels = [3, 5, 7]  # Small capacities for tractable DP
-        # self.demand_scenarios = ['low', 'base', 'high']
-        # self.market_conditions = ['budget', 'standard', 'luxury']
+        self.capacity_levels = [3, 5, 7]  # Small capacities for tractable DP
+        self.demand_scenarios = ['low', 'base', 'high']
+        self.market_conditions = ['budget', 'standard', 'luxury']
         
-        self.capacity_levels = [3]  # Small capacities for tractable DP
-        self.demand_scenarios = ['base']
-        self.market_conditions = ['standard']
+        # self.capacity_levels = [3]  # Small capacities for tractable DP
+        # self.demand_scenarios = ['base']
+        # self.market_conditions = ['standard']
         
         # SAA learning parameters
         self.learning_params = {
-            'eta_0': 0.5,        # Initial learning rate
+            'eta_0': 0.3,        # Initial learning rate
             'gamma': 0.05,       # Learning rate decay
             'eta_min': 0.001,    # Minimum learning rate
             'max_epochs': 1000,  # Maximum training epochs
@@ -80,7 +80,7 @@ class Experiment1Runner:
         }
         
         # Statistical parameters
-        self.num_replications = 30  # Number of replications per configuration
+        self.num_replications = 100  # Number of replications per configuration
         self.confidence_level = 0.95
         
     def generate_test_instance(self, 
