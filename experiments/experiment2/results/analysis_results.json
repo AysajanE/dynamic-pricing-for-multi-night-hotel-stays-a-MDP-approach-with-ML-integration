@@ -1,0 +1,119 @@
+{
+    "property_analysis": {
+        "boutique": {
+            "mean_saa_time": 191.25466032028197,
+            "std_saa_time": 55.40458743298375,
+            "mean_state_space": 3.051757812503906e+23,
+            "min_time": 128.80246996879578,
+            "max_time": 279.5977420806885
+        },
+        "mid_size": {
+            "mean_saa_time": 185.34915772676467,
+            "std_saa_time": 46.16223896307919,
+            "mean_state_space": 5.000000000000049e+27,
+            "min_time": 134.36925315856934,
+            "max_time": 256.3466980457306
+        }
+    },
+    "scaling_analysis": {
+        "    boutique\nName: 0, dtype: object_T    28\nName: 0, dtype: object_N    7\nName: 0, dtype: object": {
+            "saa_time_mean": 129.92842078208923,
+            "saa_time_std": 0.8596597423474553,
+            "dp_time_mean": null,
+            "dp_time_std": null,
+            "state_space_size": 781250000000.0
+        },
+        "    boutique\nName: 1, dtype: object_T    28\nName: 1, dtype: object_N    14\nName: 1, dtype: object": {
+            "saa_time_mean": 191.81906061172486,
+            "saa_time_std": 3.5511759803483245,
+            "dp_time_mean": null,
+            "dp_time_std": null,
+            "state_space_size": 6.103515625e+23
+        },
+        "    boutique\nName: 2, dtype: object_T    56\nName: 2, dtype: object_N    7\nName: 2, dtype: object": {
+            "saa_time_mean": 166.67097673416137,
+            "saa_time_std": 1.006696149242695,
+            "dp_time_mean": null,
+            "dp_time_std": null,
+            "state_space_size": 781250000000.0
+        },
+        "    boutique\nName: 3, dtype: object_T    56\nName: 3, dtype: object_N    14\nName: 3, dtype: object": {
+            "saa_time_mean": 276.60018315315244,
+            "saa_time_std": 2.1814446495136774,
+            "dp_time_mean": null,
+            "dp_time_std": null,
+            "state_space_size": 6.103515625e+23
+        },
+        "    mid_size\nName: 4, dtype: object_T    28\nName: 4, dtype: object_N    7\nName: 4, dtype: object": {
+            "saa_time_mean": 135.52602434158325,
+            "saa_time_std": 0.9240532441576778,
+            "dp_time_mean": null,
+            "dp_time_std": null,
+            "state_space_size": 100000000000000.0
+        },
+        "    mid_size\nName: 5, dtype: object_T    28\nName: 5, dtype: object_N    14\nName: 5, dtype: object": {
+            "saa_time_mean": 189.94781308174134,
+            "saa_time_std": 0.9646705088682859,
+            "dp_time_mean": null,
+            "dp_time_std": null,
+            "state_space_size": 1e+28
+        },
+        "    mid_size\nName: 6, dtype: object_T    56\nName: 6, dtype: object_N    7\nName: 6, dtype: object": {
+            "saa_time_mean": 160.17758960723876,
+            "saa_time_std": 1.8209938015025462,
+            "dp_time_mean": null,
+            "dp_time_std": null,
+            "state_space_size": 100000000000000.0
+        },
+        "    mid_size\nName: 7, dtype: object_T    56\nName: 7, dtype: object_N    14\nName: 7, dtype: object": {
+            "saa_time_mean": 255.74520387649537,
+            "saa_time_std": 1.0216231003758685,
+            "dp_time_mean": null,
+            "dp_time_std": null,
+            "state_space_size": 1e+28
+        }
+    },
+    "convergence_analysis": {
+        "boutique_T28_N7": {
+            "mean_saa_time": 129.92842078208923,
+            "std_saa_time": 0.8596597423474583,
+            "cv_saa_time": 0.0066164103063274
+        },
+        "boutique_T28_N14": {
+            "mean_saa_time": 191.81906061172486,
+            "std_saa_time": 3.5511759803483263,
+            "cv_saa_time": 0.018513154892028816
+        },
+        "boutique_T56_N7": {
+            "mean_saa_time": 166.67097673416137,
+            "std_saa_time": 1.0066961492426942,
+            "cv_saa_time": 0.006040020698074897
+        },
+        "boutique_T56_N14": {
+            "mean_saa_time": 276.60018315315244,
+            "std_saa_time": 2.1814446495136806,
+            "cv_saa_time": 0.007886634870034858
+        },
+        "mid_size_T28_N7": {
+            "mean_saa_time": 135.52602434158325,
+            "std_saa_time": 0.9240532441576778,
+            "cv_saa_time": 0.0068182716098029285
+        },
+        "mid_size_T28_N14": {
+            "mean_saa_time": 189.94781308174134,
+            "std_saa_time": 0.9646705088682902,
+            "cv_saa_time": 0.005078608135662809
+        },
+        "mid_size_T56_N7": {
+            "mean_saa_time": 160.17758960723876,
+            "std_saa_time": 1.8209938015025464,
+            "cv_saa_time": 0.011368592859760777
+        },
+        "mid_size_T56_N14": {
+            "mean_saa_time": 255.74520387649537,
+            "std_saa_time": 1.0216231003758707,
+            "cv_saa_time": 0.003994691141380049
+        }
+    },
+    "dp_feasibility": {}
+}
