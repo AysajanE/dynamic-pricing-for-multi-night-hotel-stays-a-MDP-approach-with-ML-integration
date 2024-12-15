@@ -1,118 +1,372 @@
 {
     "property_analysis": {
         "boutique": {
-            "mean_saa_time": 191.25466032028197,
-            "std_saa_time": 55.40458743298375,
-            "mean_state_space": 3.051757812503906e+23,
-            "min_time": 128.80246996879578,
-            "max_time": 279.5977420806885
+            "mean_saa_time": 447.19048229853314,
+            "std_saa_time": 197.31652133615384,
+            "mean_state_space": 1.241763432820638e+47,
+            "min_time": 150.9407262802124,
+            "max_time": 874.2632353305817
         },
         "mid_size": {
-            "mean_saa_time": 185.34915772676467,
-            "std_saa_time": 46.16223896307919,
-            "mean_state_space": 5.000000000000049e+27,
-            "min_time": 134.36925315856934,
-            "max_time": 256.3466980457306
+            "mean_saa_time": 799.8966630829705,
+            "std_saa_time": 397.15367710283397,
+            "mean_state_space": 2.0632150921900156e+182,
+            "min_time": 294.2376980781555,
+            "max_time": 1551.244796037674
+        },
+        "large": {
+            "mean_saa_time": 931.9072555303574,
+            "std_saa_time": 344.9833952206093,
+            "mean_state_space": 5.986257591281009e+207,
+            "min_time": 435.03213906288147,
+            "max_time": 1406.1894872188568
+        },
+        "resort_chain": {
+            "mean_saa_time": 834.9488766789436,
+            "std_saa_time": 204.21037860581353,
+            "mean_state_space": 1.1579106183941906e+233,
+            "min_time": 484.6982932090759,
+            "max_time": 1165.4111738204956
         }
     },
     "scaling_analysis": {
         "    boutique\nName: 0, dtype: object_T    28\nName: 0, dtype: object_N    7\nName: 0, dtype: object": {
-            "saa_time_mean": 129.92842078208923,
-            "saa_time_std": 0.8596597423474553,
+            "saa_time_mean": 268.6169976234436,
+            "saa_time_std": 65.92831913967841,
             "dp_time_mean": null,
             "dp_time_std": null,
             "state_space_size": 781250000000.0
         },
         "    boutique\nName: 1, dtype: object_T    28\nName: 1, dtype: object_N    14\nName: 1, dtype: object": {
-            "saa_time_mean": 191.81906061172486,
-            "saa_time_std": 3.5511759803483245,
+            "saa_time_mean": 300.8786624908447,
+            "saa_time_std": 119.70767670341394,
             "dp_time_mean": null,
             "dp_time_std": null,
             "state_space_size": 6.103515625e+23
         },
-        "    boutique\nName: 2, dtype: object_T    56\nName: 2, dtype: object_N    7\nName: 2, dtype: object": {
-            "saa_time_mean": 166.67097673416137,
-            "saa_time_std": 1.006696149242695,
+        "    boutique\nName: 2, dtype: object_T    28\nName: 2, dtype: object_N    28\nName: 2, dtype: object": {
+            "saa_time_mean": 444.72267775535585,
+            "saa_time_std": 153.78745194203498,
+            "dp_time_mean": null,
+            "dp_time_std": null,
+            "state_space_size": 3.725290298461914e+47
+        },
+        "    boutique\nName: 3, dtype: object_T    56\nName: 3, dtype: object_N    7\nName: 3, dtype: object": {
+            "saa_time_mean": 330.486096906662,
+            "saa_time_std": 83.00063446106414,
             "dp_time_mean": null,
             "dp_time_std": null,
             "state_space_size": 781250000000.0
         },
-        "    boutique\nName: 3, dtype: object_T    56\nName: 3, dtype: object_N    14\nName: 3, dtype: object": {
-            "saa_time_mean": 276.60018315315244,
-            "saa_time_std": 2.1814446495136774,
+        "    boutique\nName: 4, dtype: object_T    56\nName: 4, dtype: object_N    14\nName: 4, dtype: object": {
+            "saa_time_mean": 605.3381650447845,
+            "saa_time_std": 7.52237488353012,
             "dp_time_mean": null,
             "dp_time_std": null,
             "state_space_size": 6.103515625e+23
         },
-        "    mid_size\nName: 4, dtype: object_T    28\nName: 4, dtype: object_N    7\nName: 4, dtype: object": {
-            "saa_time_mean": 135.52602434158325,
-            "saa_time_std": 0.9240532441576778,
+        "    boutique\nName: 5, dtype: object_T    56\nName: 5, dtype: object_N    28\nName: 5, dtype: object": {
+            "saa_time_mean": 659.7299540519714,
+            "saa_time_std": 225.33207560149341,
             "dp_time_mean": null,
             "dp_time_std": null,
-            "state_space_size": 100000000000000.0
+            "state_space_size": 3.725290298461914e+47
         },
-        "    mid_size\nName: 5, dtype: object_T    28\nName: 5, dtype: object_N    14\nName: 5, dtype: object": {
-            "saa_time_mean": 189.94781308174134,
-            "saa_time_std": 0.9646705088682859,
+        "    boutique\nName: 6, dtype: object_T    84\nName: 6, dtype: object_N    7\nName: 6, dtype: object": {
+            "saa_time_mean": 303.44274287223817,
+            "saa_time_std": 102.66735399197134,
             "dp_time_mean": null,
             "dp_time_std": null,
-            "state_space_size": 1e+28
+            "state_space_size": 781250000000.0
         },
-        "    mid_size\nName: 6, dtype: object_T    56\nName: 6, dtype: object_N    7\nName: 6, dtype: object": {
-            "saa_time_mean": 160.17758960723876,
-            "saa_time_std": 1.8209938015025462,
+        "    boutique\nName: 7, dtype: object_T    84\nName: 7, dtype: object_N    14\nName: 7, dtype: object": {
+            "saa_time_mean": 499.0269530773163,
+            "saa_time_std": 171.27605602812972,
             "dp_time_mean": null,
             "dp_time_std": null,
-            "state_space_size": 100000000000000.0
+            "state_space_size": 6.103515625e+23
         },
-        "    mid_size\nName: 7, dtype: object_T    56\nName: 7, dtype: object_N    14\nName: 7, dtype: object": {
-            "saa_time_mean": 255.74520387649537,
-            "saa_time_std": 1.0216231003758685,
+        "    boutique\nName: 8, dtype: object_T    84\nName: 8, dtype: object_N    28\nName: 8, dtype: object": {
+            "saa_time_mean": 612.4720908641815,
+            "saa_time_std": 231.5843138999994,
             "dp_time_mean": null,
             "dp_time_std": null,
-            "state_space_size": 1e+28
+            "state_space_size": 3.725290298461914e+47
+        },
+        "    large\nName: 9, dtype: object_T    84\nName: 9, dtype: object_N    28\nName: 9, dtype: object": {
+            "saa_time_mean": 702.6947141170501,
+            "saa_time_std": 238.49655847693978,
+            "dp_time_mean": null,
+            "dp_time_std": null,
+            "state_space_size": 2.2876792454961e+69
+        },
+        "    large\nName: 10, dtype: object_T    84\nName: 10, dtype: object_N    84\nName: 10, dtype: object": {
+            "saa_time_mean": 1048.3358241558076,
+            "saa_time_std": 289.19074810526456,
+            "dp_time_mean": null,
+            "dp_time_std": null,
+            "state_space_size": 1.1972515182562019e+208
+        },
+        "    large\nName: 11, dtype: object_T    168\nName: 11, dtype: object_N    28\nName: 11, dtype: object": {
+            "saa_time_mean": 578.6874232769012,
+            "saa_time_std": 197.48935024210556,
+            "dp_time_mean": null,
+            "dp_time_std": null,
+            "state_space_size": 2.2876792454961e+69
+        },
+        "    large\nName: 12, dtype: object_T    168\nName: 12, dtype: object_N    84\nName: 12, dtype: object": {
+            "saa_time_mean": 1361.8890144348145,
+            "saa_time_std": 49.91734012317722,
+            "dp_time_mean": null,
+            "dp_time_std": null,
+            "state_space_size": 1.1972515182562019e+208
+        },
+        "    large\nName: 13, dtype: object_T    336\nName: 13, dtype: object_N    28\nName: 13, dtype: object": {
+            "saa_time_mean": 686.2891742229461,
+            "saa_time_std": 158.5502584565445,
+            "dp_time_mean": null,
+            "dp_time_std": null,
+            "state_space_size": 2.2876792454961e+69
+        },
+        "    large\nName: 14, dtype: object_T    336\nName: 14, dtype: object_N    84\nName: 14, dtype: object": {
+            "saa_time_mean": 1213.5473829746247,
+            "saa_time_std": 107.07176118433608,
+            "dp_time_mean": null,
+            "dp_time_std": null,
+            "state_space_size": 1.1972515182562019e+208
+        },
+        "    mid_size\nName: 15, dtype: object_T    56\nName: 15, dtype: object_N    14\nName: 15, dtype: object": {
+            "saa_time_mean": 477.7304561138153,
+            "saa_time_std": 165.20099865552103,
+            "dp_time_mean": null,
+            "dp_time_std": null,
+            "state_space_size": 2.9192926025390627e+30
+        },
+        "    mid_size\nName: 16, dtype: object_T    56\nName: 16, dtype: object_N    28\nName: 16, dtype: object": {
+            "saa_time_mean": 419.9376405715942,
+            "saa_time_std": 6.311351231305382,
+            "dp_time_mean": null,
+            "dp_time_std": null,
+            "state_space_size": 8.522269299239293e+60
+        },
+        "    mid_size\nName: 17, dtype: object_T    56\nName: 17, dtype: object_N    84\nName: 17, dtype: object": {
+            "saa_time_mean": 1213.4052277565002,
+            "saa_time_std": 403.3568792042205,
+            "dp_time_mean": null,
+            "dp_time_std": null,
+            "state_space_size": 6.189645276570047e+182
+        },
+        "    mid_size\nName: 18, dtype: object_T    84\nName: 18, dtype: object_N    14\nName: 18, dtype: object": {
+            "saa_time_mean": 495.27454948425293,
+            "saa_time_std": 169.60902233633053,
+            "dp_time_mean": null,
+            "dp_time_std": null,
+            "state_space_size": 2.9192926025390627e+30
+        },
+        "    mid_size\nName: 19, dtype: object_T    84\nName: 19, dtype: object_N    28\nName: 19, dtype: object": {
+            "saa_time_mean": 869.2876033782959,
+            "saa_time_std": 4.8948450286170395,
+            "dp_time_mean": null,
+            "dp_time_std": null,
+            "state_space_size": 8.522269299239293e+60
+        },
+        "    mid_size\nName: 20, dtype: object_T    84\nName: 20, dtype: object_N    84\nName: 20, dtype: object": {
+            "saa_time_mean": 1112.0935353279115,
+            "saa_time_std": 393.92251892013934,
+            "dp_time_mean": null,
+            "dp_time_std": null,
+            "state_space_size": 6.189645276570047e+182
+        },
+        "    mid_size\nName: 21, dtype: object_T    168\nName: 21, dtype: object_N    14\nName: 21, dtype: object": {
+            "saa_time_mean": 399.07264704704284,
+            "saa_time_std": 137.55110024228878,
+            "dp_time_mean": null,
+            "dp_time_std": null,
+            "state_space_size": 2.9192926025390627e+30
+        },
+        "    mid_size\nName: 22, dtype: object_T    168\nName: 22, dtype: object_N    28\nName: 22, dtype: object": {
+            "saa_time_mean": 943.2977567195892,
+            "saa_time_std": 13.855356810384771,
+            "dp_time_mean": null,
+            "dp_time_std": null,
+            "state_space_size": 8.522269299239293e+60
+        },
+        "    mid_size\nName: 23, dtype: object_T    168\nName: 23, dtype: object_N    84\nName: 23, dtype: object": {
+            "saa_time_mean": 1268.9705513477325,
+            "saa_time_std": 269.4163093351294,
+            "dp_time_mean": null,
+            "dp_time_std": null,
+            "state_space_size": 6.189645276570047e+182
+        },
+        "    resort_chain\nName: 24, dtype: object_T    168\nName: 24, dtype: object_N    28\nName: 24, dtype: object": {
+            "saa_time_mean": 660.3865738868714,
+            "saa_time_std": 117.40051209314088,
+            "dp_time_mean": null,
+            "dp_time_std": null,
+            "state_space_size": 6.140942214464816e+77
+        },
+        "    resort_chain\nName: 25, dtype: object_T    168\nName: 25, dtype: object_N    84\nName: 25, dtype: object": {
+            "saa_time_mean": 922.4743748188018,
+            "saa_time_std": 21.607915932759962,
+            "dp_time_mean": null,
+            "dp_time_std": null,
+            "state_space_size": 2.315821236788381e+233
+        },
+        "    resort_chain\nName: 26, dtype: object_T    336\nName: 26, dtype: object_N    28\nName: 26, dtype: object": {
+            "saa_time_mean": 653.9744255542755,
+            "saa_time_std": 54.1599577594118,
+            "dp_time_mean": null,
+            "dp_time_std": null,
+            "state_space_size": 6.140942214464816e+77
+        },
+        "    resort_chain\nName: 27, dtype: object_T    336\nName: 27, dtype: object_N    84\nName: 27, dtype: object": {
+            "saa_time_mean": 1102.9601324558257,
+            "saa_time_std": 50.07715266744679,
+            "dp_time_mean": null,
+            "dp_time_std": null,
+            "state_space_size": 2.315821236788381e+233
         }
     },
     "convergence_analysis": {
         "boutique_T28_N7": {
-            "mean_saa_time": 129.92842078208923,
-            "std_saa_time": 0.8596597423474583,
-            "cv_saa_time": 0.0066164103063274
+            "mean_saa_time": 268.6169976234436,
+            "std_saa_time": 65.92831913967841,
+            "cv_saa_time": 0.24543614038936942
         },
         "boutique_T28_N14": {
-            "mean_saa_time": 191.81906061172486,
-            "std_saa_time": 3.5511759803483263,
-            "cv_saa_time": 0.018513154892028816
+            "mean_saa_time": 300.8786624908447,
+            "std_saa_time": 119.70767670341394,
+            "cv_saa_time": 0.3978603059200201
+        },
+        "boutique_T28_N28": {
+            "mean_saa_time": 444.72267775535585,
+            "std_saa_time": 153.78745194203498,
+            "cv_saa_time": 0.34580528413402434
         },
         "boutique_T56_N7": {
-            "mean_saa_time": 166.67097673416137,
-            "std_saa_time": 1.0066961492426942,
-            "cv_saa_time": 0.006040020698074897
+            "mean_saa_time": 330.486096906662,
+            "std_saa_time": 83.00063446106414,
+            "cv_saa_time": 0.25114712914687515
         },
         "boutique_T56_N14": {
-            "mean_saa_time": 276.60018315315244,
-            "std_saa_time": 2.1814446495136806,
-            "cv_saa_time": 0.007886634870034858
+            "mean_saa_time": 605.3381650447845,
+            "std_saa_time": 7.52237488353012,
+            "cv_saa_time": 0.012426731565774635
         },
-        "mid_size_T28_N7": {
-            "mean_saa_time": 135.52602434158325,
-            "std_saa_time": 0.9240532441576778,
-            "cv_saa_time": 0.0068182716098029285
+        "boutique_T56_N28": {
+            "mean_saa_time": 659.7299540519714,
+            "std_saa_time": 225.33207560149341,
+            "cv_saa_time": 0.34155198535027026
         },
-        "mid_size_T28_N14": {
-            "mean_saa_time": 189.94781308174134,
-            "std_saa_time": 0.9646705088682902,
-            "cv_saa_time": 0.005078608135662809
+        "boutique_T84_N7": {
+            "mean_saa_time": 303.44274287223817,
+            "std_saa_time": 102.66735399197134,
+            "cv_saa_time": 0.33834176761049944
         },
-        "mid_size_T56_N7": {
-            "mean_saa_time": 160.17758960723876,
-            "std_saa_time": 1.8209938015025464,
-            "cv_saa_time": 0.011368592859760777
+        "boutique_T84_N14": {
+            "mean_saa_time": 499.0269530773163,
+            "std_saa_time": 171.27605602812972,
+            "cv_saa_time": 0.34322005048411325
+        },
+        "boutique_T84_N28": {
+            "mean_saa_time": 612.4720908641815,
+            "std_saa_time": 231.5843138999994,
+            "cv_saa_time": 0.3781140681418482
         },
         "mid_size_T56_N14": {
-            "mean_saa_time": 255.74520387649537,
-            "std_saa_time": 1.0216231003758707,
-            "cv_saa_time": 0.003994691141380049
+            "mean_saa_time": 477.7304561138153,
+            "std_saa_time": 165.20099865552103,
+            "cv_saa_time": 0.34580378232398745
+        },
+        "mid_size_T56_N28": {
+            "mean_saa_time": 419.9376405715942,
+            "std_saa_time": 6.311351231305381,
+            "cv_saa_time": 0.01502925820775376
+        },
+        "mid_size_T56_N84": {
+            "mean_saa_time": 1213.4052277565002,
+            "std_saa_time": 403.3568792042205,
+            "cv_saa_time": 0.3324172914187939
+        },
+        "mid_size_T84_N14": {
+            "mean_saa_time": 495.27454948425293,
+            "std_saa_time": 169.6090223363305,
+            "cv_saa_time": 0.3424545487204025
+        },
+        "mid_size_T84_N28": {
+            "mean_saa_time": 869.2876033782959,
+            "std_saa_time": 4.89484502861705,
+            "cv_saa_time": 0.005630869472421218
+        },
+        "mid_size_T84_N84": {
+            "mean_saa_time": 1112.0935353279115,
+            "std_saa_time": 393.92251892013934,
+            "cv_saa_time": 0.3542170747391203
+        },
+        "mid_size_T168_N14": {
+            "mean_saa_time": 399.07264704704284,
+            "std_saa_time": 137.55110024228878,
+            "cv_saa_time": 0.34467684332690984
+        },
+        "mid_size_T168_N28": {
+            "mean_saa_time": 943.2977567195892,
+            "std_saa_time": 13.855356810384759,
+            "cv_saa_time": 0.014688211343328247
+        },
+        "mid_size_T168_N84": {
+            "mean_saa_time": 1268.9705513477325,
+            "std_saa_time": 269.4163093351294,
+            "cv_saa_time": 0.21231092325112755
+        },
+        "large_T84_N28": {
+            "mean_saa_time": 702.6947141170501,
+            "std_saa_time": 238.49655847693975,
+            "cv_saa_time": 0.3394028070591301
+        },
+        "large_T84_N84": {
+            "mean_saa_time": 1048.3358241558076,
+            "std_saa_time": 289.1907481052645,
+            "cv_saa_time": 0.27585697392163516
+        },
+        "large_T168_N28": {
+            "mean_saa_time": 578.6874232769012,
+            "std_saa_time": 197.48935024210556,
+            "cv_saa_time": 0.3412711980567913
+        },
+        "large_T168_N84": {
+            "mean_saa_time": 1361.8890144348145,
+            "std_saa_time": 49.91734012317723,
+            "cv_saa_time": 0.036653016210644
+        },
+        "large_T336_N28": {
+            "mean_saa_time": 686.2891742229461,
+            "std_saa_time": 158.5502584565445,
+            "cv_saa_time": 0.23102544002105774
+        },
+        "large_T336_N84": {
+            "mean_saa_time": 1213.5473829746247,
+            "std_saa_time": 107.07176118433608,
+            "cv_saa_time": 0.08823039189609867
+        },
+        "resort_chain_T168_N28": {
+            "mean_saa_time": 660.3865738868714,
+            "std_saa_time": 117.40051209314086,
+            "cv_saa_time": 0.17777543750193256
+        },
+        "resort_chain_T168_N84": {
+            "mean_saa_time": 922.4743748188018,
+            "std_saa_time": 21.607915932759973,
+            "cv_saa_time": 0.023423865770801855
+        },
+        "resort_chain_T336_N28": {
+            "mean_saa_time": 653.9744255542755,
+            "std_saa_time": 54.15995775941182,
+            "cv_saa_time": 0.08281662958533674
+        },
+        "resort_chain_T336_N84": {
+            "mean_saa_time": 1102.9601324558257,
+            "std_saa_time": 50.07715266744682,
+            "cv_saa_time": 0.045402504763201346
         }
     },
     "dp_feasibility": {}
