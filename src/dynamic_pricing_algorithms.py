@@ -632,30 +632,45 @@ class StochasticApproximation:
                                    self.params.price_min, 
                                    self.params.price_max)
             
-    def solve(self) -> Tuple[Dict[int, np.ndarray], float, float]:
+    def solve(self, memory_tracker=None, convergence_tracker=None) -> Tuple[Dict[int, np.ndarray], float, float]:
         """
-        Execute the SAA algorithm with proper convergence checking.
+        Execute the SAA algorithm with memory and convergence tracking.
         
-        Uses gradient-based convergence criteria and monitors revenue improvements
-        to determine when the algorithm has converged to an optimal solution.
-        
+        Parameters:
+        -----------
+        memory_tracker : MemoryTracker, optional
+            Tracker for monitoring memory usage during optimization
+        convergence_tracker : ConvergenceTracker, optional
+            Tracker for monitoring convergence metrics
+            
         Returns:
-            Tuple of (final_prices, final_revenue, solve_time)
+        --------
+        Tuple[Dict[int, np.ndarray], float, float]
+            Final prices, revenue, and computation time
         """
         start_time = time.time()
+        
+        if memory_tracker:
+            memory_tracker.capture_snapshot("optimization_start")
         
         # Initialize convergence monitoring
         revenue_history = []
         gradient_history = []
+        
         window_size = 20  # Window for checking convergence
         convergence_tol = 1e-4  # Tolerance for gradient norm
         
         for epoch in range(self.learning_params['max_epochs']):
+            epoch_start = time.time()
+            
             # Compute current learning rate using simple decay schedule
             learning_rate = max(
                 self.learning_params['eta_min'],
                 self.learning_params['eta_0'] / (1 + self.learning_params['gamma'] * epoch)
             )
+            
+            if memory_tracker:
+                memory_tracker.capture_snapshot(f"epoch_{epoch}_start")
             
             # Initialize epoch statistics
             epoch_gradients = {t: np.zeros(self.params.N) 
@@ -683,6 +698,21 @@ class StochasticApproximation:
                 epoch_gradients[t] /= self.learning_params['batch_size']
             avg_revenue = epoch_revenue / self.learning_params['batch_size']
             
+            # Calculate gradient norm for convergence monitoring
+            grad_norm = max(np.linalg.norm(grad) for grad in epoch_gradients.values())
+            gradient_history.append(grad_norm)
+            revenue_history.append(avg_revenue)
+            
+            if convergence_tracker:
+                epoch_time = time.time() - epoch_start
+                convergence_tracker.update(
+                    objective_value=avg_revenue,
+                    gradient_norm=grad_norm,
+                    prices=np.array([p for t in range(1, self.params.T + 1) 
+                                   for p in self.prices[t]]),
+                    iteration_time=epoch_time
+                )
+            
             # Update prices
             for t in range(1, self.params.T + 1):
                 self.prices[t] += learning_rate * epoch_gradients[t]
@@ -691,10 +721,8 @@ class StochasticApproximation:
                                        self.params.price_min,
                                        self.params.price_max)
             
-            # Calculate gradient norm for convergence check
-            grad_norm = max(np.linalg.norm(grad) for grad in epoch_gradients.values())
-            gradient_history.append(grad_norm)
-            revenue_history.append(avg_revenue)
+            if memory_tracker:
+                memory_tracker.capture_snapshot(f"epoch_{epoch}_end")
             
             # Check convergence
             if len(gradient_history) >= window_size:
@@ -723,6 +751,9 @@ class StochasticApproximation:
         
         solve_time = time.time() - start_time
         final_revenue = self.evaluate(self.prices)
+        
+        if memory_tracker:
+            memory_tracker.capture_snapshot("optimization_end")
         
         return self.prices, final_revenue, solve_time
     

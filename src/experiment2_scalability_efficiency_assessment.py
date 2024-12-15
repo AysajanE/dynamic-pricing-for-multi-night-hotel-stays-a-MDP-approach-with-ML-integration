@@ -13,12 +13,80 @@ import time
 from data_generator import TestConfiguration, create_test_instance
 from dynamic_pricing_algorithms import DynamicProgramming, StochasticApproximation
 
+# Import memory usage tracker modules
+from memory_profiler import profile
+import psutil
+import resource
+
 # Configure logging
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(levelname)s - %(message)s'
 )
 logger = logging.getLogger(__name__)
+
+class MemoryTracker:
+    """Track memory usage during algorithm execution."""
+    
+    def __init__(self):
+        self.memory_snapshots = []
+        self.peak_memory = 0
+        self.snapshot_points = []
+        
+    def capture_snapshot(self, point_name: str):
+        """Capture current memory usage with labeled snapshot point."""
+        process = psutil.Process()
+        current_memory = process.memory_info().rss / 1024 / 1024  # in MB
+        self.memory_snapshots.append(current_memory)
+        self.snapshot_points.append(point_name)
+        self.peak_memory = max(self.peak_memory, current_memory)
+        
+    def get_memory_profile(self):
+        """Return comprehensive memory usage statistics."""
+        return {
+            'peak_memory_mb': self.peak_memory,
+            'average_memory_mb': np.mean(self.memory_snapshots),
+            'memory_growth': self.memory_snapshots[-1] - self.memory_snapshots[0],
+            'snapshot_series': list(zip(self.snapshot_points, self.memory_snapshots))
+        }
+
+class ConvergenceTracker:
+    """Track convergence metrics during SAA optimization."""
+    
+    def __init__(self):
+        self.objective_history = []
+        self.gradient_norms = []
+        self.price_variations = []
+        self.iteration_times = []
+        
+    def update(self, objective_value: float, gradient_norm: float, 
+               prices: np.ndarray, iteration_time: float):
+        """Record convergence metrics for current iteration."""
+        self.objective_history.append(objective_value)
+        self.gradient_norms.append(gradient_norm)
+        self.iteration_times.append(iteration_time)
+        
+        if len(self.price_variations) > 0:
+            price_change = np.mean(np.abs(prices - self.price_variations[-1]))
+            self.price_variations.append(price_change)
+        else:
+            self.price_variations.append(0)
+            
+    def get_convergence_metrics(self):
+        """Return comprehensive convergence statistics."""
+        initial_objective = self.objective_history[0]
+        final_objective = self.objective_history[-1]
+        
+        return {
+            'initial_objective': initial_objective,
+            'final_objective': final_objective,
+            'relative_improvement': (final_objective - initial_objective) / abs(initial_objective),
+            'gradient_decay': self.gradient_norms[-1] / self.gradient_norms[0],
+            'final_price_variation': np.mean(self.price_variations[-10:]),
+            'convergence_iterations': len(self.objective_history),
+            'average_iteration_time': np.mean(self.iteration_times),
+            'total_convergence_time': sum(self.iteration_times)
+        }
 
 class ScalabilityExperiment:
     """
@@ -33,48 +101,54 @@ class ScalabilityExperiment:
         self.output_dir.mkdir(parents=True, exist_ok=True)
         
         # Define property configurations
-        self.property_configs = [
-            {
-                'type': 'boutique',
-                'capacity': 50,
-                'booking_horizons': [28, 56, 84],
-                'service_horizons': [7, 14, 28]
-            },
-            {
-                'type': 'mid_size',
-                'capacity': 150,
-                'booking_horizons': [56, 84, 168],
-                'service_horizons': [14, 28, 84]
-            },
-            {
-                'type': 'large',
-                'capacity': 300,
-                'booking_horizons': [84, 168, 336],
-                'service_horizons': [28, 84]
-            },
-            {
-                'type': 'resort_chain',
-                'capacity': 600,
-                'booking_horizons': [168, 336],
-                'service_horizons': [28, 84]
-            }
-        ]
-        
-        # # Define property configurations - small instance
         # self.property_configs = [
         #     {
         #         'type': 'boutique',
         #         'capacity': 50,
-        #         'booking_horizons': [28, 56],
-        #         'service_horizons': [7, 14]
+        #         'booking_horizons': [28, 56, 84],
+        #         'service_horizons': [7, 14, 28]
         #     },
         #     {
         #         'type': 'mid_size',
-        #         'capacity': 100,
-        #         'booking_horizons': [28, 56],
-        #         'service_horizons': [7, 14]
+        #         'capacity': 150,
+        #         'booking_horizons': [56, 84, 168],
+        #         'service_horizons': [14, 28, 84]
+        #     },
+        #     {
+        #         'type': 'large',
+        #         'capacity': 300,
+        #         'booking_horizons': [84, 168, 336],
+        #         'service_horizons': [28, 84]
+        #     },
+        #     {
+        #         'type': 'resort_chain',
+        #         'capacity': 600,
+        #         'booking_horizons': [168, 336],
+        #         'service_horizons': [28, 84]
         #     }
         # ]
+        
+        # Define property configurations - small instance
+        self.property_configs = [
+            {
+                'type': 'small',
+                'capacity': 5,
+                'booking_horizons': [7, 14],
+                'service_horizons': [5]
+            },
+            {
+                'type': 'boutique',
+                'capacity': 25,
+                'booking_horizons': [14, 28],
+                'service_horizons': [7, 14]
+            },
+            {
+                'type': 'mid_size',
+                'capacity': 50,
+                'booking_horizons': [14, 28],
+                'service_horizons': [7, 14]
+            }
+        ]
         
         # Generate test cases from property configurations
         self.test_cases = self._generate_test_cases()
@@ -94,7 +168,7 @@ class ScalabilityExperiment:
         
         # Experiment parameters
         self.num_replications = 5
-        self.dp_size_limit = 1000
+        self.dp_size_limit = 10000
         
         logger.info(f"Initialized ScalabilityExperiment with {len(self.test_cases)} test cases")
         
@@ -141,34 +215,63 @@ class ScalabilityExperiment:
         try:
             logger.debug(f"Processing test case: {test_case}, replication: {replication}")
             
+            # Initialize trackers
+            memory_tracker = MemoryTracker()
+            convergence_tracker = ConvergenceTracker()
+
+            # Track initial memory state
+            memory_tracker.capture_snapshot("initialization")
+            
             # Generate test instance
             instance = self.generate_test_instance(test_case, seed=1000 * replication)
+            memory_tracker.capture_snapshot("instance_generation")
             
             # Initialize results dictionary with test case parameters
             results = {
                 **test_case,  # Include all test case parameters
                 'replication': replication,
-                'state_space_size': test_case['capacity'] ** test_case['N']
+                'state_space_size': (test_case['capacity']+1) ** test_case['N']
             }
             
             # Run SAA
             saa = StochasticApproximation(instance, self.learning_params)
+            memory_tracker.capture_snapshot("saa_initialization")
+            
             saa_start = time.time()
-            saa_prices, saa_revenue, saa_time = saa.solve()
-            results['saa_time'] = saa_time
-            results['saa_revenue'] = saa_revenue
+            saa_prices, saa_revenue, saa_time = saa.solve(
+                memory_tracker=memory_tracker,
+                convergence_tracker=convergence_tracker
+            )
+            
+            # Record SAA results
+            results.update({
+                'saa_time': saa_time,
+                'saa_revenue': saa_revenue,
+                'memory_profile': memory_tracker.get_memory_profile(),
+                'convergence_metrics': convergence_tracker.get_convergence_metrics()
+            })
             
             # Run DP only if state space is manageable
             if results['state_space_size'] <= self.dp_size_limit:
+                memory_tracker.capture_snapshot("dp_start")
                 dp = DynamicProgramming(instance)
                 dp_start = time.time()
                 dp_policy, dp_value = dp.solve()
-                results['dp_time'] = time.time() - dp_start
-                results['dp_revenue'] = dp_value
+                dp_time = time.time() - dp_start
+                memory_tracker.capture_snapshot("dp_end")
+
+                results.update({
+                    'dp_time': dp_time,
+                    'dp_revenue': dp_value,
+                    'dp_memory': memory_tracker.memory_snapshots[-1] - memory_tracker.memory_snapshots[-2]
+                })
             else:
-                results['dp_time'] = None
-                results['dp_revenue'] = None
-            
+                results.update({
+                    'dp_time': None,
+                    'dp_revenue': None,
+                    'dp_memory': None
+                })
+
             logger.debug(f"Completed test case: {test_case}, replication: {replication}")
             return results
             
@@ -219,10 +322,11 @@ class ScalabilityExperiment:
         return results_df
 
     def analyze_results(self, results_df: pd.DataFrame) -> Dict:
-        """Analyze experimental results with property-based metrics."""
+        """Analyze experimental results with property-based metrics, including memory and convergence metrics."""
         analysis = {
             'property_analysis': {},
             'scaling_analysis': {},
+            'memory_analysis': {},
             'convergence_analysis': {},
             'dp_feasibility': {}
         }
@@ -238,6 +342,36 @@ class ScalabilityExperiment:
                 'min_time': float(property_data['saa_time'].min()),
                 'max_time': float(property_data['saa_time'].max())
             }
+            
+        # Add memory analysis
+        for property_type in results_df['property_type'].unique():
+            property_data = results_df[results_df['property_type'] == property_type]
+
+            memory_metrics = {
+                'peak_memory': property_data['memory_profile'].apply(
+                    lambda x: x['peak_memory_mb']).mean(),
+                'memory_growth': property_data['memory_profile'].apply(
+                    lambda x: x['memory_growth']).mean(),
+                'memory_efficiency': property_data['memory_profile'].apply(
+                    lambda x: x['peak_memory_mb'] / x['average_memory_mb']).mean()
+            }
+
+            analysis['memory_analysis'][property_type] = memory_metrics
+
+        # Add convergence analysis
+        for property_type in results_df['property_type'].unique():
+            property_data = results_df[results_df['property_type'] == property_type]
+
+            convergence_metrics = {
+                'avg_iterations': property_data['convergence_metrics'].apply(
+                    lambda x: x['convergence_iterations']).mean(),
+                'avg_improvement': property_data['convergence_metrics'].apply(
+                    lambda x: x['relative_improvement']).mean(),
+                'avg_final_variation': property_data['convergence_metrics'].apply(
+                    lambda x: x['final_price_variation']).mean()
+            }
+
+            analysis['convergence_analysis'][property_type] = convergence_metrics
         
         # Scaling analysis by problem dimensions
         size_metrics = results_df.groupby(['property_type', 'T', 'N']).agg({
