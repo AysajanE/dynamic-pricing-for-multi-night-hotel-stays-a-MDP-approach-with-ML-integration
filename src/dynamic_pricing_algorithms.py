@@ -799,3 +799,219 @@ class StochasticApproximation:
             total_revenue += path_revenue
         
         return total_revenue / len(evaluation_paths)
+    
+    class QuadraticProgramming:
+    """
+    Quadratic Programming (QP) implementation for hotel dynamic pricing with multiple-night stays.
+    
+    This implementation follows the formulation from Section 3.2 of the paper, providing a tractable 
+    approximation that aggregates demand over the booking horizon while maintaining the core 
+    economic trade-offs of the multi-night pricing problem.
+    
+    Key Features:
+    - Concave objective function ensuring global optimality
+    - Capacity constraints in expectation
+    - Linear purchase probability functions
+    - Static prices across the booking horizon
+    """
+    
+    def __init__(self, instance: Dict):
+        """
+        Initialize QP solver using test instance data.
+        
+        Args:
+            instance: Dictionary containing problem parameters and data from data_generator
+        """
+        # Extract basic parameters
+        self.params = instance['parameters']
+        self.T = self.params.T
+        self.N = self.params.N
+        self.C = self.params.C
+        self.price_min = self.params.price_min
+        self.price_max = self.params.price_max
+        
+        # Extract booking information
+        self.booking_classes = instance['booking_classes']
+        self.epsilon = instance['reservation_price_params']
+        
+        # Aggregate arrival probabilities over booking horizon
+        self.total_arrival_probs = self._aggregate_arrival_probabilities(
+            instance['arrival_probabilities']
+        )
+        
+        # Precompute class information for efficiency
+        self._precompute_class_info()
+        
+        logger.info(f"Initialized QP solver with {len(self.booking_classes)} booking classes")
+        
+    def _aggregate_arrival_probabilities(self, arrival_probs: Dict) -> Dict:
+        """
+        Aggregate arrival probabilities over the booking horizon for each class.
+        
+        Args:
+            arrival_probs: Dictionary mapping periods to class probabilities
+            
+        Returns:
+            Dictionary mapping booking classes to total arrival probability
+        """
+        total_probs = {}
+        for booking_class in self.booking_classes:
+            prob_sum = sum(
+                probs.get(booking_class, 0.0) 
+                for probs in arrival_probs.values()
+            )
+            total_probs[booking_class] = prob_sum
+        return total_probs
+    
+    def _precompute_class_info(self):
+        """Precompute booking class information for efficient optimization."""
+        self.class_stays = {}
+        self.stay_lengths = {}
+        for arrival, departure in self.booking_classes:
+            self.class_stays[(arrival, departure)] = list(range(arrival - 1, departure))
+            self.stay_lengths[(arrival, departure)] = departure - arrival + 1
+            
+    def _setup_qp_problem(self):
+        """
+        Set up the quadratic programming problem using CVXPY.
+        
+        The formulation follows Section 3.2 of the paper:
+        max ∑_{b∈B} L_b π_b(p_b - ε_b(p_b)^2)
+        s.t. ∑_{b:i∈N_b} π_b(1 - ε_b p_b) ≤ C, ∀i
+             p_b = ∑_{i∈N_b} p_i, ∀b
+             p ≤ p_i ≤ p̄, ∀i
+        """
+        import cvxpy as cp
+        
+        # Decision variables: per-night prices
+        p = cp.Variable(self.N)
+        
+        # Initialize objective terms and constraints
+        objective_terms = []
+        constraints = []
+        
+        # Add price bound constraints
+        constraints.append(p >= self.price_min)
+        constraints.append(p <= self.price_max)
+        
+        # Build objective and capacity constraints
+        for booking_class in self.booking_classes:
+            # Extract class information
+            stay_nights = self.class_stays[booking_class]
+            length_of_stay = self.stay_lengths[booking_class]
+            pi_b = self.total_arrival_probs[booking_class]
+            eps_b = self.epsilon[booking_class]
+            
+            # Total price for this booking class
+            p_b = cp.sum([p[i] for i in stay_nights])
+            
+            # Add objective term: L_b π_b(p_b - ε_b(p_b)^2)
+            objective_terms.append(
+                length_of_stay * pi_b * (p_b - eps_b * cp.square(p_b))
+            )
+            
+            # Add expected demand to capacity constraints
+            demand_b = pi_b * (1 - eps_b * p_b)
+            for i in stay_nights:
+                if not hasattr(self, '_capacity_demands'):
+                    self._capacity_demands = {j: [] for j in range(self.N)}
+                self._capacity_demands[i].append(demand_b)
+                
+        # Form capacity constraints: ∑_{b:i∈N_b} π_b(1 - ε_b p_b) ≤ C
+        for i in range(self.N):
+            if self._capacity_demands[i]:
+                constraints.append(cp.sum(self._capacity_demands[i]) <= self.C)
+                
+        # Form objective
+        objective = cp.sum(objective_terms)
+        
+        return cp.Problem(cp.Maximize(objective), constraints), p
+    
+    def solve(self) -> Tuple[Dict[int, np.ndarray], float, float]:
+        """
+        Solve the QP problem to obtain optimal static prices.
+        
+        Returns:
+            Tuple containing:
+            - Dictionary mapping periods to price vectors
+            - Optimal objective value
+            - Solution time
+        """
+        start_time = time.time()
+        
+        try:
+            # Set up and solve QP
+            problem, price_var = self._setup_qp_problem()
+            problem.solve(solver='CVXOPT')
+            
+            if problem.status != 'optimal':
+                raise ValueError(f"QP solution failed with status: {problem.status}")
+            
+            # Extract optimal prices
+            optimal_prices = price_var.value
+            
+            # Convert to same format as other algorithms
+            prices = {
+                t: optimal_prices.copy() 
+                for t in range(1, self.params.T + 1)
+            }
+            
+            solve_time = time.time() - start_time
+            logger.info(
+                f"QP solution completed in {solve_time:.2f} seconds. "
+                f"Objective value: {problem.value:.2f}"
+            )
+            
+            return prices, problem.value, solve_time
+            
+        except Exception as e:
+            logger.error(f"Error solving QP: {str(e)}")
+            raise
+            
+    def evaluate(self, prices: Dict[int, np.ndarray], evaluation_paths: List = None) -> float:
+        """
+        Evaluate QP pricing policy using provided sample paths or generate new ones.
+        
+        Args:
+            prices: Dictionary mapping time periods to price vectors
+            evaluation_paths: Optional list of pre-generated sample paths
+            
+        Returns:
+            Average revenue across sample paths
+        """
+        if evaluation_paths is None:
+            # Use same path generation as SAA for consistency
+            saa = StochasticApproximation(
+                {'parameters': self.params,
+                 'booking_classes': self.booking_classes,
+                 'arrival_probabilities': {1: self.total_arrival_probs},
+                 'reservation_price_params': self.epsilon}
+            )
+            evaluation_paths = [saa._generate_sample_path() 
+                              for _ in range(1000)]
+            
+        total_revenue = 0.0
+        
+        for path in evaluation_paths:
+            path_revenue = 0.0
+            capacity = np.full(self.N, self.C, dtype=np.int32)
+            
+            for t, bt, qt in path:
+                if bt is not None:
+                    stay_nights = self.class_stays[bt]
+                    length_of_stay = self.stay_lengths[bt]
+                    
+                    has_capacity = all(capacity[i] >= 1 for i in stay_nights)
+                    
+                    if has_capacity:
+                        stay_prices = [prices[t][i] for i in stay_nights]
+                        avg_price = sum(stay_prices) / length_of_stay
+                        
+                        if qt >= avg_price:
+                            path_revenue += sum(stay_prices)
+                            for i in stay_nights:
+                                capacity[i] -= 1
+                                
+            total_revenue += path_revenue
+            
+        return total_revenue / len(evaluation_paths)
